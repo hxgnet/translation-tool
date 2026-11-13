@@ -91,12 +91,18 @@ function restoreAutoSaveData() {
     }
 }
 
+// 显示用拼音：轻声去掉末尾 0，例如 le0 → le
+function numDisplay(py){
+    const s=numToMark(py);
+    return /^[a-zü]+0$/.test(s) ? s.slice(0,-1) : s;
+}
+
 function numToMark(py){
     const m=py.match(/^([a-zü]+)([0-5])$/);
     if(!m)return py;
     let[,p,t]=m;
     if(t==='5'||t==='0'){
-        // 轻声记作 0：不加声调符号，但保留 0 标记
+        // 轻声记作 0：不加声调符号，保留 0 标记供内部匹配
         return p.replace('v','ü')+'0';
     }
     p=p.replace('v','ü');
@@ -478,7 +484,7 @@ function pinyinSentenceToChinese(pyStr){
         if (ch !== '○') {
             result.push(ch);
         } else {
-            result.push(numToMark(segInfo.seg));
+            result.push(numDisplay(segInfo.seg));
         }
     }
     
@@ -716,7 +722,7 @@ function pinyinSentenceToChineseDetailed(pyStr){
             if (ch !== '○') {
                 units.push(ch);
             } else {
-                units.push(numToMark(py));
+                units.push(numDisplay(py));
             }
             
             polyphones.push({
@@ -724,7 +730,7 @@ function pinyinSentenceToChineseDetailed(pyStr){
                 candidates: candidates,
                 pinyin: actualPy,
                 unitType: 'char',
-                displayPinyin: numToMark(actualPy)
+                displayPinyin: numDisplay(actualPy)
             });
             syllableMap.push(unitIdx);
             unitIdx++;
@@ -959,8 +965,8 @@ function sortPinyinList(pinyinList){
         return aTone-bTone;
     });
 }
-const XINGLIAN_CHAR_EXCEPTIONS={'的':'id','吧':'oab'};
-const XINGLIAN_WORD_EXCEPTIONS={'id':'de0','oab':'ba0'};
+const XINGLIAN_CHAR_EXCEPTIONS={'的':'id','吧':'oab','了':'il'};
+const XINGLIAN_WORD_EXCEPTIONS={'id':'de0','oab':'ba0','il':'le0'};
 let __preferredCharsDone=false;
 function ensurePreferredChars(){
     if(__preferredCharsDone)return;
@@ -974,6 +980,7 @@ function ensurePreferredChars(){
     };
     ['de','de5','de0'].forEach(k=>set(k,'的'));
     ['ba','ba5','ba0'].forEach(k=>set(k,'吧'));
+    ['le','le5','le0'].forEach(k=>set(k,'了'));
 }
 function strictForwardConvert(p,d=false){
     debugSteps=[];
@@ -990,6 +997,7 @@ function strictForwardConvert(p,d=false){
     let{pinyin:cp,tone:tn}=markToNum(p);
     const nm=cp.match(/^([a-zü]+)([0-5])$/);
     if(nm){cp=nm[1];tn=parseInt(nm[2]);}
+    const neutral=(tn===0||tn===5);
     if(tn===0)tn=5;
     if(tn<1||tn>5)tn=1;
     cp=cp.toLowerCase().replace('ü','v');
@@ -1035,6 +1043,11 @@ function strictForwardConvert(p,d=false){
         const ywb=ip>yxl.length?yxl+fb:yxl.substring(0,ip-1)+fb+yxl.substring(ip-1);
         bf=ywb+b;
         if(d)debugSteps.push(`多韵母基础形式：${bf}`);
+    }
+    if(neutral){
+        const ftN=applyAdjacentTransform(bf,d);
+        if(d)debugSteps.push(`轻声跳过声调转变，结果："${ftN.result}"`);
+        return ftN.result;
     }
     const yib=Array.from(bf).filter(ch=>XINGLIAN_YUNMU_SET.has(ch));
     let wt=bf,tc='',ip=false;
@@ -1367,7 +1380,7 @@ function calcTableMatchCache() {
         ch.forEach((yunmu, colIdx) => {
             const pureYunmu = yunmu.replace('ü','v');
             const p = shengmu === '无声母' ? pureYunmu + GLOBAL_STATE.currentTone : shengmu + pureYunmu + GLOBAL_STATE.currentTone;
-            const markedPy = numToMark(p);
+            const markedPy = numDisplay(p);
             const cellText = markedPy.toLowerCase();
             const xlText = strictForwardConvert(p, false).toLowerCase();
             let matched = cellText.includes(kw) || xlText.includes(kw) || p.toLowerCase().includes(kw);
@@ -1430,7 +1443,7 @@ function buildDictionaryData(){
     const yd={};
     YUNMU_SORT_ORDER.forEach(y=>yd[y]=[]);
     forwardDict.forEach((xl,p)=>{
-        const mp=numToMark(p);
+        const mp=numDisplay(p);
         let sm=null,ym=p.replace(/[1-5]/g,'');
         const p0=p[0].replace('ü','v');
         if(p.length>=2&&['zh','ch','sh'].includes(p.substring(0,2))){sm=p.substring(0,2);ym=ym.substring(2);}
@@ -1700,7 +1713,7 @@ function renderPyTable(){
         ch.forEach((y,colIdx)=>{
             const pureYunmu = y.replace('ü','v');
             const p=s==='无声母'?pureYunmu+GLOBAL_STATE.currentTone:s+pureYunmu+GLOBAL_STATE.currentTone;
-            const markedPy=numToMark(p);
+            const markedPy=numDisplay(p);
             let isColActive=false;
             if(!kw){
                 isColActive=GLOBAL_STATE.activeClassifyType==='yunmu'&&y===GLOBAL_STATE.activeYunmuCategory;
@@ -1989,7 +2002,7 @@ function startTrainWrite(){
     const c=document.getElementById('trainContent');
     c.innerHTML=`<div style="text-align:center;padding:20px 0">
         <div style="color:var(--text-muted);margin-bottom:10px;font-size:0.9rem">请根据以下拼音写出对应星联语</div>
-        <div style="font-size:2rem;font-weight:bold;color:var(--sec);letter-spacing:4px;margin:20px 0;text-shadow:var(--glow)">${numToMark(item.pyRaw)}</div>
+        <div style="font-size:2rem;font-weight:bold;color:var(--sec);letter-spacing:4px;margin:20px 0;text-shadow:var(--glow)">${numDisplay(item.pyRaw)}</div>
         <input type="text" class="lab-input" id="trainAnswerInput" placeholder="输入星联语" style="width:80%;max-width:300px;margin:10px auto;display:block;text-align:center">
         <div style="margin-top:15px"><button class="translate-btn" id="trainSubmitBtn">提交答案</button> <button class="translate-btn secondary" id="trainNextBtn">下一题</button></div>
         <div id="trainFeedback" style="margin-top:15px"></div>
@@ -2006,7 +2019,7 @@ function startTrainConvert(){
     c.innerHTML=`<div style="padding:20px 0">
         <div style="text-align:center;margin-bottom:20px">
             <div style="color:var(--text-muted);margin-bottom:10px;font-size:0.9rem">查看转换过程，然后回答结果</div>
-            <div style="font-size:1.5rem;font-weight:bold;color:var(--sec)">${numToMark(item.pyRaw)}</div>
+            <div style="font-size:1.5rem;font-weight:bold;color:var(--sec)">${numDisplay(item.pyRaw)}</div>
         </div>
         <div style="padding:15px;background:var(--card);border-radius:8px;border:1px solid var(--border);margin-bottom:15px">
             <div style="font-weight:600;color:var(--pri);margin-bottom:8px">转换步骤</div>
@@ -2294,7 +2307,7 @@ function showPolyphonePopup(targetIdx, event) {
         let listHTML = '';
         for (let i = 0; i < part.allPinyins.length; i++) {
             const py = part.allPinyins[i];
-            const pyMark = numToMark(py);
+            const pyMark = numDisplay(py);
             const xlText = strictForwardConvert(py, false);
             const isSelected = (py === part.pinyin);
             listHTML += '<div class="polyphone-candidate' + (isSelected ? ' selected' : '') + 
@@ -2478,7 +2491,7 @@ function doTranslate(){
             if(isXinglianText(xinglian)){
                 hasXinglian=true;
                 const r=strictReverseConvert(xinglian,false);
-                pyOutput.push(prefix + r.bestGuess + suffix);
+                pyOutput.push(prefix + r.bestGuess.replace(/([a-zü])[05]$/,'$1') + suffix);
                 xlPinyins.push(r.bestGuess);
                 // 记录标点信息，供后面翻译使用
                 if(!xlPunctInfo) xlPunctInfo = [];
@@ -2598,7 +2611,7 @@ function doTranslate(){
                             candidates: candidates,
                             pinyin: actualPy,
                             unitType: 'char',
-                            displayPinyin: numToMark(actualPy)
+                            displayPinyin: numDisplay(actualPy)
                         }]
                     };
                 }else{
@@ -2627,7 +2640,7 @@ function doTranslate(){
                 if(part.isPolyphone){
                     hasPolyphone = true;
                     // 多音字：高亮显示
-                    const pinyinMark = numToMark(part.pinyin);
+                    const pinyinMark = numDisplay(part.pinyin);
                     resHTML.push('<span class="polyphone-xl" data-char-idx="' + charIdx + '" title="点击切换读音：' + pinyinMark + '">' + xlText + '</span>');
                 }else{
                     resHTML.push(xlText);
@@ -3657,7 +3670,7 @@ function toXinglian(cn){
     }).join(' ');
 }
 function toNumericPinyin(cn){
-    return chineseSentenceToPinyin(cn).map(p => p.translatable ? p.pinyin.replace(/5/g, '0') : p.original).join(' ');
+    return chineseSentenceToPinyin(cn).map(p => p.translatable ? p.pinyin.replace(/[05]$/, '') : p.original).join(' ');
 }
 function teachTable(rows, head){
     return `<table class="teach-table"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${
@@ -3680,10 +3693,10 @@ const TEACH_LESSONS = [
             <h4>学习顺序</h4>
             <p>建议按课程顺序学习：先认识声母和韵母的变形表，再学单韵母、多韵母的构词公式，最后掌握声调、轮询和固定特例。每节课后都配有随堂练习和扩展词表，练习通过后进度会自动保存。</p>
             <h4>三个组成部分</h4>
-            ${teachTable([['声母', '音节开头的辅音，如 b、zh、sh', '变形为 1～2 个字母，第一个是本体'], ['韵母', '声母后面的部分，如 a、ang、ian', '特殊韵母 ang/eng/ing/ong/ü 需要替换'], ['声调', '一二三四声与轻声', '取韵母中的第 n 个字母；轻声记 0']], ['部分', '含义', '在星联语中的表现'])}
+            ${teachTable([['声母', '音节开头的辅音，如 b、zh、sh', '变形为 1～2 个字母，第一个是本体'], ['韵母', '声母后面的部分，如 a、ang、ian', '特殊韵母 ang/eng/ing/ong/ü 需要替换'], ['声调', '一二三四声与轻声', '取韵母中的第 n 个字母；轻声跳过声调转变']], ['部分', '含义', '在星联语中的表现'])}
             <h4>先看三组例子</h4>
             ${teachTable(exampleRows(['你好', '中国', '老师']), ['中文', '拼音', '星联语'])}
-            <div class="teach-tip">提示：拼音里的 0 表示轻声，例如「的」写作 <code>de0</code>。所有轻声字统一标 0，不写 5。</div>`,
+            <div class="teach-tip">提示：轻声字不写声调数字，「的」拼音是 <code>de</code>、「了」是 <code>le</code>，它们有固定写法：<code>id</code>、<code>il</code>。</div>`,
         quiz: [['你好'], ['中国'], ['老师']]
     },
     {
@@ -3742,15 +3755,16 @@ const TEACH_LESSONS = [
     },
     {
         id: 'tone',
-        title: '声调与轻声 0',
-        desc: '取第 n 个韵母，轻声记 0',
+        title: '声调与轻声',
+        desc: '取第 n 个韵母，轻声跳过声调',
         body: () => `
             <p>声调不再用符号，而是从音节里的韵母字母中<strong>取第 n 个</strong>追加到末尾：一声取第 1 个，四声取第 4 个。</p>
-            <p><strong>轻声一律记作 0</strong>：拼音写成 <code>de0</code>、<code>men0</code>、<code>zi0</code> 这样的形式，不写 5，也不取序号；构词时按“韵母不足”的规则从最后一个韵母开始轮询。</p>
-            <p>常见轻声字包括：的、了、着、吗、呢、吧、们、子、头、么。它们在词典、教学词表和翻译结果里都显示为 0 声。</p>
-            ${teachTable(exampleRows(['妈', '麻', '马', '骂', '的', '吧']), ['中文', '拼音', '星联语'])}
+            <p><strong>轻声直接跳过声调转变</strong>：拼音写 <code>de</code>、<code>men</code>、<code>le</code>，不写 0 也不写 5，构词时也不追加声调字母。</p>
+            <p>例如「了」的拼音是 <code>le</code>，跳过声调后写作固定形式 <code>il</code>；「吧」写作 <code>oab</code>。</p>
+            <p>常见轻声字包括：的、了、着、吗、呢、吧、们、子、头、么。它们只在普通话里读轻声，星联语里按跳过声调的规则处理。</p>
+            ${teachTable(exampleRows(['妈', '麻', '马', '骂', '的', '吧', '了']), ['中文', '拼音', '星联语'])}
             ${teachTable(exampleRows(['我们', '桌子', '什么']), ['中文', '拼音', '星联语'])}
-            <div class="teach-tip">「的」写作 <code>id</code>，「吧」写作 <code>oab</code>，属于固定特例，下一课会讲。把「我们」拆开看：<code>wo3 men0</code>，第二个音节是轻声 0。</div>`,
+            <div class="teach-tip">「的」写作 <code>id</code>，「吧」写作 <code>oab</code>，「了」写作 <code>il</code>，属于固定特例，下一课会讲。拼音列里不再出现 0。</div>`,
         quiz: [['妈'], ['马'], ['麻']]
     },
     {
@@ -3791,11 +3805,11 @@ const TEACH_LESSONS = [
     {
         id: 'special',
         title: '多音字与固定特例',
-        desc: '的 → id，吧 → oab',
+        desc: '的 → id，吧 → oab，了 → il',
         body: () => `
-            <p>两个高频轻声字使用固定写法，避免与其他音节同形：</p>
-            ${teachTable([['的 (de0)', 'id'], ['吧 (ba0)', 'oab']], ['拼音', '星联语'])}
-            <p>反向转换时 <code>id</code> 固定还原为「的」，<code>oab</code> 固定还原为「吧」；词典里这两个拼音也优先选「的 / 吧」，不会先选「得 / 八」。</p>
+            <p>三个高频轻声字使用固定写法，避免与其他音节同形：</p>
+            ${teachTable([['的 (de)', 'id'], ['吧 (ba)', 'oab'], ['了 (le)', 'il']], ['拼音', '星联语'])}
+            <p>反向转换时 <code>id</code> 固定还原为「的」，<code>oab</code> 固定还原为「吧」，<code>il</code> 固定还原为「了」；词典里这些拼音也优先选对应汉字。</p>
             <p>多音字（如「行」「重」「长」）在翻译结果中用<strong>虚线高亮</strong>，点击可以切换读音并重新生成星联语。</p>
             <p>本课结束后，你已经掌握了全部构词规则。建议回到翻译页输入长句练习，遇到不确定的字可以随时来教学词表里搜索对照。</p>
             ${teachTable(exampleRows(['我的书', '走吧', '银行']), ['中文', '拼音', '星联语'])}
@@ -3871,7 +3885,7 @@ function renderTeachCorpus(){
         ? slice.map(s => {
             const i = s.indexOf('|');
             const cn = s.slice(0, i), py = s.slice(i + 1);
-            return `<tr><td>${cn}</td><td class="teach-corpus-py">${py}</td><td class="teach-corpus-xl">${corpusXl(cn, py)}</td></tr>`;
+            return `<tr><td>${cn}</td><td class="teach-corpus-py">${py.split(/\s+/).map(x => x.replace(/[05]$/, '')).join(' ')}</td><td class="teach-corpus-xl">${corpusXl(cn, py)}</td></tr>`;
         }).join('')
         : '<tr><td colspan="3" class="teach-corpus-empty">没有匹配的词条，换个关键词试试</td></tr>';
     if(pageEl) pageEl.textContent = `第 ${page + 1} / ${pages} 页`;
@@ -3922,8 +3936,8 @@ function renderTeachLesson(){
                 <h3>扩展词表</h3>
                 <span class="teach-corpus-count" id="teachCorpusCount"></span>
             </div>
-            <p class="teach-corpus-desc">下面的词条都符合本课规则，拼音中的 0 表示轻声。可以搜索汉字或拼音，逐页浏览。</p>
-            <input type="text" class="teach-corpus-search" id="teachCorpusSearch" placeholder="搜索汉字或拼音，例如：的 / de0 / zhong">
+            <p class="teach-corpus-desc">下面的词条都符合本课规则。轻声字不写声调数字，可以搜索汉字或拼音，逐页浏览。</p>
+            <input type="text" class="teach-corpus-search" id="teachCorpusSearch" placeholder="搜索汉字或拼音，例如：的 / de / zhong">
             <div class="teach-table-wrap">
                 <table class="teach-table teach-corpus-table">
                     <thead><tr><th>中文</th><th>拼音</th><th>星联语</th></tr></thead>
