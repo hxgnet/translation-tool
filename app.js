@@ -2588,6 +2588,7 @@ function doTranslate(){
             cnOutputDom.textContent = '中文：' + finalText;
         }
         cnOutputDom.style.display='block';
+        scheduleAiRefine(t, xlPinyins.join(' '), (cnOutputDom.textContent || '').replace(/^中文：/, '').trim());
     }else if(hasChinese){
         // 中文 → 星联语
         const parts=chineseSentenceToPinyin(t);
@@ -2623,11 +2624,13 @@ function doTranslate(){
         }
         outputDom.dataset.plainText = res.join(' ');
         cnOutputDom.style.display='none';
+        cancelAiRefine();
     }else{
         // 纯拼音/字母输入 → 星联文
         const xlRes=partsArr.map(p=>simplifyXinglianText(strictForwardConvert(p,false)));
         outputDom.textContent=xlRes.join(' ');
         cnOutputDom.style.display='none';
+        cancelAiRefine();
     }
     autoSaveTranslateData();
 }
@@ -3634,3 +3637,151 @@ document.addEventListener('keydown', function(e){
 });
 
 renderFavs();
+
+/* ===================== 联网校订（免费公开接口） ===================== */
+const AI_REFINE = {
+    enabled: localStorage.getItem('xl_ai_refine') !== '0',
+    seq: 0,
+    ctrl: null,
+    timer: null,
+    lastCall: 0,
+    cache: new Map(),
+    busy: false
+};
+const AI_MIN_INTERVAL = 48000;   // 免费接口限制：每 45 秒 1 次
+const AI_TIMEOUT = 25000;
+
+function aiNote(text, cls){
+    const note = document.getElementById('aiNote');
+    if(!note) return;
+    note.className = 'ai-note' + (cls ? ' ' + cls : '');
+    note.textContent = text || '';
+}
+
+function cancelAiRefine(){
+    AI_REFINE.seq++;
+    clearTimeout(AI_REFINE.timer);
+    if(AI_REFINE.ctrl){ try{ AI_REFINE.ctrl.abort(); }catch(e){} AI_REFINE.ctrl = null; }
+    AI_REFINE.busy = false;
+    aiNote('');
+}
+
+function scheduleAiRefine(xlText, pyText, localCn){
+    if(!AI_REFINE.enabled || !pyText || !localCn){ return; }
+    const key = xlText + '|' + pyText;
+    const seq = ++AI_REFINE.seq;
+    clearTimeout(AI_REFINE.timer);
+
+    if(AI_REFINE.cache.has(key)){
+        applyAiResult(AI_REFINE.cache.get(key), localCn);
+        return;
+    }
+    if(!window.fetch){ aiNote('当前浏览器不支持联网校订'); return; }
+    const wait = AI_MIN_INTERVAL - (Date.now() - AI_REFINE.lastCall);
+    if(wait > 0){
+        aiNote(`已显示本地结果 · ${Math.ceil(wait/1000)} 秒后自动联网校订`, 'loading');
+        AI_REFINE.timer = setTimeout(() => {
+            if(seq !== AI_REFINE.seq) return;
+            requestAiRefine(seq, key, xlText, pyText, localCn);
+        }, wait + 300);
+        return;
+    }
+    aiNote('正在联网校订…', 'loading');
+    AI_REFINE.timer = setTimeout(() => {
+        if(seq !== AI_REFINE.seq) return;
+        requestAiRefine(seq, key, xlText, pyText, localCn);
+    }, 600);
+}
+
+function requestAiRefine(seq, key, xlText, pyText, localCn){
+    const prompt = [
+        '把下列由“星联语”还原出的中文草稿改写成通顺的现代汉语。',
+        '要求：只能用与拼音读音相同的汉字；不增删信息；只输出最终句子，不要前缀或解释。',
+        '星联语：' + xlText,
+        '拼音：' + pyText,
+        '草稿：' + localCn
+    ].join('\n');
+    const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai-fast&temperature=0.2';
+    const ctrl = new AbortController();
+    AI_REFINE.ctrl = ctrl;
+    AI_REFINE.busy = true;
+    AI_REFINE.lastCall = Date.now();
+    const timer = setTimeout(() => { try{ ctrl.abort(); }catch(e){} }, AI_TIMEOUT);
+
+    fetch(url, { signal: ctrl.signal })
+        .then(r => { if(!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(raw => {
+            clearTimeout(timer);
+            AI_REFINE.busy = false;
+            if(seq !== AI_REFINE.seq) return;
+            const text = String(raw || '').trim();
+            if(/free limit reached|rate limit|too many requests/i.test(text)){
+                aiNote('本地结果已显示 · 免费接口限流，请稍后再试');
+                return;
+            }
+            const fixed = sanitizeAiText(text);
+            if(!looksLikeChinese(fixed)){ aiNote('本地结果已显示 · 校订结果无效'); return; }
+            if(fixed === localCn){ aiNote('已联网校订 · 与本地结果一致'); return; }
+            if(Math.abs(fixed.length - localCn.length) > Math.max(4, localCn.length * 0.5)){
+                aiNote('本地结果已显示 · 校订结果与原文长度差异过大，未采用');
+                return;
+            }
+            AI_REFINE.cache.set(key, fixed);
+            applyAiResult(fixed, localCn);
+        })
+        .catch(err => {
+            clearTimeout(timer);
+            AI_REFINE.busy = false;
+            if(seq !== AI_REFINE.seq) return;
+            aiNote(err && err.name === 'AbortError' ? '本地结果已显示 · 联网校订超时' : '本地结果已显示 · 联网校订失败');
+        });
+}
+
+function sanitizeAiText(raw){
+    let t = String(raw || '').trim();
+    t = t.replace(/```[a-zA-Z]*/g, '').trim();
+    t = t.split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
+    t = t.replace(/^(修正后|校订后|结果|中文)\s*[:：]\s*/, '');
+    t = t.replace(/^[“”"'‘’]+|[“”"'‘’]+$/g, '').trim();
+    return t;
+}
+
+function looksLikeChinese(t){
+    if(!t) return false;
+    const han = (t.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const latin = (t.match(/[a-zA-Z]/g) || []).length;
+    return han >= 1 && han >= latin;
+}
+
+function applyAiResult(fixed, localCn){
+    const cnOutputDom = document.getElementById('translateChineseOutput');
+    if(!cnOutputDom) return;
+    cnOutputDom.textContent = '中文：' + fixed;
+    cnOutputDom.dataset.plainText = fixed;
+    cnOutputDom.style.display = 'block';
+    aiNote('已联网校订 · 本地直译：' + localCn);
+}
+
+function refreshAiToggle(){
+    const btn = document.getElementById('aiToggleBtn');
+    if(!btn) return;
+    btn.classList.toggle('active', AI_REFINE.enabled);
+    btn.textContent = AI_REFINE.enabled ? '联网校订' : '联网校订（关）';
+}
+
+document.addEventListener('click', function(e){
+    const btn = e.target.closest('#aiToggleBtn');
+    if(!btn) return;
+    AI_REFINE.enabled = !AI_REFINE.enabled;
+    try{ localStorage.setItem('xl_ai_refine', AI_REFINE.enabled ? '1' : '0'); }catch(err){}
+    refreshAiToggle();
+    if(!AI_REFINE.enabled){
+        cancelAiRefine();
+        aiNote('');
+        return;
+    }
+    if(AI_REFINE.busy) return;
+    aiNote('联网校订已开启');
+    doTranslate();
+});
+refreshAiToggle();
