@@ -2398,8 +2398,27 @@ function splitPunctuationAndXinglian(text) {
     return { prefix, xinglian, suffix };
 }
 
+// 星联语简化：某个字母隔一位再次出现相同字母时，前一个字母替换为撇号（aeoho → ae'ho）
+function simplifyXinglianText(text){
+    if(!text) return text;
+    const chars=text.split('');
+    for(let i=0;i+2<chars.length;i++){
+        const a=chars[i], b=chars[i+1], c=chars[i+2];
+        if(/[a-z]/i.test(a) && /[a-z]/i.test(b) && a===c){
+            chars[i]="'";
+            i+=1;
+        }
+    }
+    return chars.join('');
+}
+// 反向还原：撇号 + 分隔字母 + 字母 → 字母+分隔字母+字母（ae'ho → aeoho）
+function expandSimplifiedXinglian(text){
+    if(!text||text.indexOf("'")===-1) return text;
+    return text.replace(/'([a-zA-Z])([a-zA-Z])/g,(m,s1,s2)=>s2+s1+s2);
+}
 function doTranslate(){
-    const t=document.getElementById('translateInput').value.trim();
+    const rawInput=document.getElementById('translateInput').value.trim();
+    const t=expandSimplifiedXinglian(rawInput);
     const outputDom=document.getElementById('translateOutput');
     const cnOutputDom=document.getElementById('translateChineseOutput');
     if(!t){
@@ -2575,7 +2594,7 @@ function doTranslate(){
         let charIdx = 0;
         for(const part of parts){
             if(part.translatable){
-                const xlText = strictForwardConvert(part.pinyin,false);
+                const xlText = simplifyXinglianText(strictForwardConvert(part.pinyin,false));
                 res.push(xlText);
                 if(part.isPolyphone){
                     hasPolyphone = true;
@@ -2603,7 +2622,7 @@ function doTranslate(){
         cnOutputDom.style.display='none';
     }else{
         // 纯拼音/字母输入 → 星联文
-        const xlRes=partsArr.map(p=>strictForwardConvert(p,false));
+        const xlRes=partsArr.map(p=>simplifyXinglianText(strictForwardConvert(p,false)));
         outputDom.textContent=xlRes.join(' ');
         cnOutputDom.style.display='none';
     }
