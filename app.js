@@ -1989,7 +1989,7 @@ function startTrainWrite(){
     const c=document.getElementById('trainContent');
     c.innerHTML=`<div style="text-align:center;padding:20px 0">
         <div style="color:var(--text-muted);margin-bottom:10px;font-size:0.9rem">请根据以下拼音写出对应星联语</div>
-        <div style="font-size:2rem;font-weight:bold;color:var(--sec);letter-spacing:4px;margin:20px 0;text-shadow:var(--glow)">${item.pyRaw}</div>
+        <div style="font-size:2rem;font-weight:bold;color:var(--sec);letter-spacing:4px;margin:20px 0;text-shadow:var(--glow)">${numToMark(item.pyRaw)}</div>
         <input type="text" class="lab-input" id="trainAnswerInput" placeholder="输入星联语" style="width:80%;max-width:300px;margin:10px auto;display:block;text-align:center">
         <div style="margin-top:15px"><button class="translate-btn" id="trainSubmitBtn">提交答案</button> <button class="translate-btn secondary" id="trainNextBtn">下一题</button></div>
         <div id="trainFeedback" style="margin-top:15px"></div>
@@ -2006,7 +2006,7 @@ function startTrainConvert(){
     c.innerHTML=`<div style="padding:20px 0">
         <div style="text-align:center;margin-bottom:20px">
             <div style="color:var(--text-muted);margin-bottom:10px;font-size:0.9rem">查看转换过程，然后回答结果</div>
-            <div style="font-size:1.5rem;font-weight:bold;color:var(--sec)">${item.pyRaw}</div>
+            <div style="font-size:1.5rem;font-weight:bold;color:var(--sec)">${numToMark(item.pyRaw)}</div>
         </div>
         <div style="padding:15px;background:var(--card);border-radius:8px;border:1px solid var(--border);margin-bottom:15px">
             <div style="font-weight:600;color:var(--pri);margin-bottom:8px">转换步骤</div>
@@ -2779,6 +2779,10 @@ if(target.closest('.tab-btn')){
                 if(at==='pyDict'){renderPyNav();renderPyContent();renderPyTable();}
                 else{renderComboNav();renderComboContent();renderComboTable();}
                 updateDictStats();
+            }
+            if(id==='train'){
+                if(window.TEACH_CORPUS) renderTeachCorpus();
+                else ensureTeachCorpus();
             }
             initSettings();
             renderFloatNav();
@@ -3673,9 +3677,13 @@ const TEACH_LESSONS = [
             <p>星联语是一套<strong>人工构造语</strong>：每个汉字先还原成拼音，再拆成 <code>声母 + 韵母 + 声调</code> 三段，分别按固定规则映射成字母。</p>
             <div class="teach-formula">汉字 → 拼音 → 声母变形 + 韵母变形 + 声调字母</div>
             <p>因此同一个汉字永远写出同一个星联词；反向则可能对应多个同音汉字，需要结合语境判断。</p>
+            <h4>学习顺序</h4>
+            <p>建议按课程顺序学习：先认识声母和韵母的变形表，再学单韵母、多韵母的构词公式，最后掌握声调、轮询和固定特例。每节课后都配有随堂练习和扩展词表，练习通过后进度会自动保存。</p>
+            <h4>三个组成部分</h4>
+            ${teachTable([['声母', '音节开头的辅音，如 b、zh、sh', '变形为 1～2 个字母，第一个是本体'], ['韵母', '声母后面的部分，如 a、ang、ian', '特殊韵母 ang/eng/ing/ong/ü 需要替换'], ['声调', '一二三四声与轻声', '取韵母中的第 n 个字母；轻声记 0']], ['部分', '含义', '在星联语中的表现'])}
             <h4>先看三组例子</h4>
             ${teachTable(exampleRows(['你好', '中国', '老师']), ['中文', '拼音', '星联语'])}
-            <div class="teach-tip">提示：拼音里的 0 表示轻声，例如「的」写作 <code>de0</code>。</div>`,
+            <div class="teach-tip">提示：拼音里的 0 表示轻声，例如「的」写作 <code>de0</code>。所有轻声字统一标 0，不写 5。</div>`,
         quiz: [['你好'], ['中国'], ['老师']]
     },
     {
@@ -3687,6 +3695,8 @@ const TEACH_LESSONS = [
             return `
             <p>每个声母对应 1～2 个字母。第一个字母是<strong>本体</strong>，第二个字母是<strong>非本体</strong>；只有本体时两者相同。</p>
             ${teachTable(rows, ['拼音声母', '星联字母', '本体'])}
+            <p>例如 <code>b → pb</code> 中 <code>p</code> 是非本体、<code>b</code> 是本体；<code>m → m</code> 只有一个字母，本体与非本体相同。</p>
+            <p>像 <code>a</code>、<code>an</code> 这样没有声母的音节（零声母），直接进入韵母变形，不需要额外加字母。</p>
             <div class="teach-tip">本体声母还会被插进韵母中间，用来标记音节边界，后面的课会用到。</div>`;
         },
         quiz: [['北京'], ['妈妈']]
@@ -3700,7 +3710,8 @@ const TEACH_LESSONS = [
             return `
             <p>大多数字母保持不变，只有少数韵母需要替换：</p>
             ${teachTable(rows, ['拼音韵母', '星联韵母'])}
-            <p>ü 统一写成 <code>v</code>，例如 <code>lü4 → lv4</code>。</p>
+            <p>ü 统一写成 <code>v</code>，例如 <code>lü4 → lv4</code>。注意 <code>ang/eng/ing/ong</code> 是整体替换，不会先拆成 a+n+g 再处理。</p>
+            <p>其余韵母（a、o、e、i、u、ai、ei、ao、ou、an、en、ia、ie、iao、iu、ian、in、iang、iong、ua、uo、uai、ui、uan、un、uang）保持原样，直接进入构词步骤。</p>
             ${teachTable(exampleRows(['绿色', '女', '略']), ['中文', '拼音', '星联语'])}`;
         },
         quiz: [['绿色'], ['女儿']]
@@ -3713,6 +3724,7 @@ const TEACH_LESSONS = [
             <p>当韵母只有一个字母时，构词公式固定为：</p>
             <div class="teach-formula">非本体声母 + 韵母 + 本体声母</div>
             <p>例如 <code>ba1</code>：声母 b 的本体是 <code>b</code>、非本体是 <code>p</code>，于是写成 <code>p</code> + <code>a</code> + <code>b</code>。</p>
+            <p>只有 a、o、e、i、u、v 这 6 个单字母韵母会用到这个公式；零声母音节则直接由韵母本身开始构词。</p>
             ${teachTable(exampleRows(['八', '怕', '妈', '大']), ['中文', '拼音', '星联语'])}`,
         quiz: [['八'], ['大']]
     },
@@ -3724,6 +3736,7 @@ const TEACH_LESSONS = [
             <p>韵母有两个及以上字母时，本体声母会插到韵母中间，把前后两半隔开：</p>
             <div class="teach-formula">韵母前段 + 本体声母 + 韵母后段 + 本体声母</div>
             <p>插入位置由韵母长度决定（<code>ang / eng / ing / ong</code> 按 2 个韵母计算），所以同一个声母在不同韵母里的位置会变化。</p>
+            <p>插入点公式是 <code>向上取整(韵母数 ÷ 2) + 1</code>：两字母韵母插在第 2 位之后，三字母韵母同样插在第 2 位之后，四字母韵母插在第 3 位之后。若插入点超出长度，则改为追加非本体声母。</p>
             ${teachTable(exampleRows(['中', '上', '星', '联']), ['中文', '拼音', '星联语'])}`,
         quiz: [['中'], ['星']]
     },
@@ -3733,9 +3746,11 @@ const TEACH_LESSONS = [
         desc: '取第 n 个韵母，轻声记 0',
         body: () => `
             <p>声调不再用符号，而是从音节里的韵母字母中<strong>取第 n 个</strong>追加到末尾：一声取第 1 个，四声取第 4 个。</p>
-            <p><strong>轻声记作 0</strong>，不取序号，而是按“韵母不足”的规则轮询下一位韵母。</p>
+            <p><strong>轻声一律记作 0</strong>：拼音写成 <code>de0</code>、<code>men0</code>、<code>zi0</code> 这样的形式，不写 5，也不取序号；构词时按“韵母不足”的规则从最后一个韵母开始轮询。</p>
+            <p>常见轻声字包括：的、了、着、吗、呢、吧、们、子、头、么。它们在词典、教学词表和翻译结果里都显示为 0 声。</p>
             ${teachTable(exampleRows(['妈', '麻', '马', '骂', '的', '吧']), ['中文', '拼音', '星联语'])}
-            <div class="teach-tip">「的」写作 <code>id</code>，「吧」写作 <code>oab</code>，属于固定特例，下一课会讲。</div>`,
+            ${teachTable(exampleRows(['我们', '桌子', '什么']), ['中文', '拼音', '星联语'])}
+            <div class="teach-tip">「的」写作 <code>id</code>，「吧」写作 <code>oab</code>，属于固定特例，下一课会讲。把「我们」拆开看：<code>wo3 men0</code>，第二个音节是轻声 0。</div>`,
         quiz: [['妈'], ['马'], ['麻']]
     },
     {
@@ -3745,6 +3760,7 @@ const TEACH_LESSONS = [
         body: () => `
             <p>构词后如果出现<strong>相邻且相同</strong>的韵母字母，会按规则合并或追加，避免单词出现歧义。</p>
             <p>判断顺序：先检查相邻重复 → 再按声调是否重复决定是否追加。</p>
+            <p>叠词是最好用的例子：爸爸、妈妈、哥哥、姐姐、看看、试试。它们两个音节的拼音结构相同，变形后容易出现连续相同字母，需要按合并规则处理。</p>
             ${teachTable(exampleRows(['爸爸', '妈妈', '哥哥', '姐姐']), ['中文', '拼音', '星联语'])}`,
         quiz: [['爸爸'], ['姐姐']]
     },
@@ -3754,7 +3770,9 @@ const TEACH_LESSONS = [
         desc: '韵母不够时往后取',
         body: () => `
             <p>当音节里的韵母数量少于声调序号（例如四声但只有 2 个韵母），就从最后一个韵母开始，按韵母顺序表<strong>向后轮询</strong>。</p>
+            <p>轮询顺序固定为 <code>a → o → e → i → u → v</code>，取到就停；如果已经到 v 还不够，就从头继续。</p>
             <p>若轮询得到的字母与已有韵母重复，则再<strong>追加一次</strong>本体声母以示区分。</p>
+            <p>四声是最容易触发轮询的声调，所以「四、是、十、死」这类字要多留意末尾字母的来历。</p>
             ${teachTable(exampleRows(['四', '是', '十', '死']), ['中文', '拼音', '星联语'])}`,
         quiz: [['四'], ['十']]
     },
@@ -3766,6 +3784,7 @@ const TEACH_LESSONS = [
             <p>有两个拼音不按常规规则生成，直接记忆：</p>
             ${teachTable([['en2 / én', 'innel'], ['nen2 / nén', 'innen']], ['拼音', '星联语'])}
             <p>反向转换时这两个词也优先匹配，不会拆成字母逐个解析。</p>
+            <p>记住它们的特征：都以 <code>inn</code> 开头，<code>innel</code> 比 <code>innen</code> 少一个 <code>n</code>。遇到「嗯」和「嫩」时直接套用，不必再走声母韵母的公式。</p>
             ${teachTable(exampleRows(['嗯', '嫩']), ['中文', '拼音', '星联语'])}`,
         quiz: [['嫩']]
     },
@@ -3776,8 +3795,9 @@ const TEACH_LESSONS = [
         body: () => `
             <p>两个高频轻声字使用固定写法，避免与其他音节同形：</p>
             ${teachTable([['的 (de0)', 'id'], ['吧 (ba0)', 'oab']], ['拼音', '星联语'])}
-            <p>反向转换时 <code>id</code> 固定还原为「的」，<code>oab</code> 固定还原为「吧」。</p>
+            <p>反向转换时 <code>id</code> 固定还原为「的」，<code>oab</code> 固定还原为「吧」；词典里这两个拼音也优先选「的 / 吧」，不会先选「得 / 八」。</p>
             <p>多音字（如「行」「重」「长」）在翻译结果中用<strong>虚线高亮</strong>，点击可以切换读音并重新生成星联语。</p>
+            <p>本课结束后，你已经掌握了全部构词规则。建议回到翻译页输入长句练习，遇到不确定的字可以随时来教学词表里搜索对照。</p>
             ${teachTable(exampleRows(['我的书', '走吧', '银行']), ['中文', '拼音', '星联语'])}
             <div class="teach-tip">完成全部课程后，回到翻译页用长句练习，效果最好。</div>`,
         quiz: [['我的'], ['走吧']]
@@ -3792,6 +3812,71 @@ function teachNormalizePy(v){
         const map = {'ā':'a','á':'a','ǎ':'a','à':'a','ō':'o','ó':'o','ǒ':'o','ò':'o','ē':'e','é':'e','ě':'e','è':'e','ī':'i','í':'i','ǐ':'i','ì':'i','ū':'u','ú':'u','ǔ':'u','ù':'u','ǖ':'v','ǘ':'v','ǚ':'v','ǜ':'v'};
         return map[ch] || ch;
     }).replace(/\s+/g, ' ').trim();
+}
+/* ---------- 教学扩展词表（按需加载 teach-data.js） ---------- */
+const TEACH_CORPUS_PAGE_SIZE = 30;
+const TEACH_CORPUS_VIEW = { page: 0, kw: '' };
+let teachCorpusLoading = false;
+function ensureTeachCorpus(){
+    if(window.TEACH_CORPUS || teachCorpusLoading) return;
+    teachCorpusLoading = true;
+    const s = document.createElement('script');
+    s.src = 'teach-data.js';
+    s.onload = function(){ teachCorpusLoading = false; renderTeachCorpus(); };
+    s.onerror = function(){ teachCorpusLoading = false; renderTeachCorpus(); };
+    document.head.appendChild(s);
+}
+function teachCorpusList(){
+    const lesson = TEACH_LESSONS[TEACH_STATE.idx];
+    return (window.TEACH_CORPUS && window.TEACH_CORPUS[lesson.id]) || [];
+}
+function corpusXl(cn, py){
+    const chars = Array.from(cn);
+    const syls = String(py).trim().split(/\s+/);
+    return chars.map((ch, i) => {
+        if(XINGLIAN_CHAR_EXCEPTIONS[ch]) return XINGLIAN_CHAR_EXCEPTIONS[ch];
+        const s = syls[i];
+        if(!s) return '';
+        return simplifyXinglianText(strictForwardConvert(s, false));
+    }).join(' ');
+}
+function renderTeachCorpus(){
+    const body = document.getElementById('teachCorpusBody');
+    if(!body) return;
+    const countEl = document.getElementById('teachCorpusCount');
+    const pageEl = document.getElementById('teachCorpusPage');
+    const prev = document.getElementById('teachCorpusPrev');
+    const next = document.getElementById('teachCorpusNext');
+    if(!window.TEACH_CORPUS){
+        if(countEl) countEl.textContent = teachCorpusLoading ? '词表加载中…' : '词表未加载';
+        body.innerHTML = '<tr><td colspan="3" class="teach-corpus-empty">正在加载扩展词表，请稍候…</td></tr>';
+        if(pageEl) pageEl.textContent = '';
+        if(prev) prev.disabled = true;
+        if(next) next.disabled = true;
+        return;
+    }
+    const all = teachCorpusList();
+    const kw = TEACH_CORPUS_VIEW.kw.trim().toLowerCase();
+    const list = kw ? all.filter(s => s.toLowerCase().indexOf(kw) !== -1) : all;
+    const pages = Math.max(1, Math.ceil(list.length / TEACH_CORPUS_PAGE_SIZE));
+    const page = Math.max(0, Math.min(TEACH_CORPUS_VIEW.page, pages - 1));
+    TEACH_CORPUS_VIEW.page = page;
+    const slice = list.slice(page * TEACH_CORPUS_PAGE_SIZE, (page + 1) * TEACH_CORPUS_PAGE_SIZE);
+    if(countEl){
+        countEl.textContent = kw
+            ? `筛选出 ${list.length} 条 / 共 ${all.length} 条`
+            : `共 ${all.length} 条`;
+    }
+    body.innerHTML = slice.length
+        ? slice.map(s => {
+            const i = s.indexOf('|');
+            const cn = s.slice(0, i), py = s.slice(i + 1);
+            return `<tr><td>${cn}</td><td class="teach-corpus-py">${py}</td><td class="teach-corpus-xl">${corpusXl(cn, py)}</td></tr>`;
+        }).join('')
+        : '<tr><td colspan="3" class="teach-corpus-empty">没有匹配的词条，换个关键词试试</td></tr>';
+    if(pageEl) pageEl.textContent = `第 ${page + 1} / ${pages} 页`;
+    if(prev) prev.disabled = page <= 0;
+    if(next) next.disabled = page >= pages - 1;
 }
 function renderTeachNav(){
     const nav = document.getElementById('teachNav');
@@ -3809,6 +3894,8 @@ function renderTeachLesson(){
     if(!main) return;
     const idx = Math.max(0, Math.min(TEACH_STATE.idx, TEACH_LESSONS.length - 1));
     TEACH_STATE.idx = idx;
+    TEACH_CORPUS_VIEW.page = 0;
+    TEACH_CORPUS_VIEW.kw = '';
     const lesson = TEACH_LESSONS[idx];
     const quizHtml = lesson.quiz.map((q, qi) => {
         const cn = q[0];
@@ -3830,11 +3917,32 @@ function renderTeachLesson(){
         </div>
         <div class="teach-body">${lesson.body()}</div>
         <div class="teach-quiz"><h3>随堂练习</h3>${quizHtml}</div>
+        <div class="teach-corpus">
+            <div class="teach-corpus-head">
+                <h3>扩展词表</h3>
+                <span class="teach-corpus-count" id="teachCorpusCount"></span>
+            </div>
+            <p class="teach-corpus-desc">下面的词条都符合本课规则，拼音中的 0 表示轻声。可以搜索汉字或拼音，逐页浏览。</p>
+            <input type="text" class="teach-corpus-search" id="teachCorpusSearch" placeholder="搜索汉字或拼音，例如：的 / de0 / zhong">
+            <div class="teach-table-wrap">
+                <table class="teach-table teach-corpus-table">
+                    <thead><tr><th>中文</th><th>拼音</th><th>星联语</th></tr></thead>
+                    <tbody id="teachCorpusBody"></tbody>
+                </table>
+            </div>
+            <div class="teach-pager">
+                <button class="chip-btn" id="teachCorpusPrev" type="button">上一页</button>
+                <span id="teachCorpusPage"></span>
+                <button class="chip-btn" id="teachCorpusNext" type="button">下一页</button>
+            </div>
+        </div>
         <div class="teach-actions">
             <button class="chip-btn" id="teachPrev" type="button" ${idx === 0 ? 'disabled' : ''}>上一课</button>
             <button class="chip-btn primary" id="teachNext" type="button" ${idx === TEACH_LESSONS.length - 1 ? 'disabled' : ''}>下一课</button>
         </div>`;
     updateTeachProgress();
+    if(window.TEACH_CORPUS) renderTeachCorpus();
+    else if(document.getElementById('train').classList.contains('active')) ensureTeachCorpus();
 }
 function updateTeachProgress(){
     const bar = document.getElementById('teachProgressBar');
@@ -3888,6 +3996,23 @@ document.addEventListener('click', function(e){
         if(fb) fb.textContent = ok ? '✓ 正确' : `✗ 再想想，正确答案：${answer}`;
         if(ok) teachMarkDoneIfAll();
         return;
+    }
+    if(t.closest('#teachCorpusPrev')){
+        TEACH_CORPUS_VIEW.page = Math.max(0, TEACH_CORPUS_VIEW.page - 1);
+        renderTeachCorpus();
+        return;
+    }
+    if(t.closest('#teachCorpusNext')){
+        TEACH_CORPUS_VIEW.page += 1;
+        renderTeachCorpus();
+        return;
+    }
+});
+document.addEventListener('input', function(e){
+    if(e.target && e.target.id === 'teachCorpusSearch'){
+        TEACH_CORPUS_VIEW.kw = e.target.value;
+        TEACH_CORPUS_VIEW.page = 0;
+        renderTeachCorpus();
     }
 });
 document.addEventListener('keydown', function(e){
