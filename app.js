@@ -92,12 +92,12 @@ function restoreAutoSaveData() {
 }
 
 function numToMark(py){
-    const m=py.match(/^([a-zü]+)([1-5])$/);
+    const m=py.match(/^([a-zü]+)([0-5])$/);
     if(!m)return py;
     let[,p,t]=m;
-    if(t==='5'){
-        // 第5声（轻声）不加声调符号
-        return p.replace('v','ü');
+    if(t==='5'||t==='0'){
+        // 轻声记作 0：不加声调符号，但保留 0 标记
+        return p.replace('v','ü')+'0';
     }
     p=p.replace('v','ü');
     t=parseInt(t)-1;
@@ -253,9 +253,9 @@ function buildPinyinChineseMap(){
     }
 }
 function pinyinToChinese(py){
-    let clean=py.toLowerCase();
+    let clean=py.toLowerCase().replace(/([a-zü])0(?=\s|$)/g,'$15');
     // 判断输入是否带声调（数字声调或符号声调）
-    const hasNumTone=/[1-5]$/.test(clean)||(clean.trim().split(/\s+/).every(p=>/[1-5]$/.test(p)));
+    const hasNumTone=/[0-5]$/.test(clean)||(clean.trim().split(/\s+/).every(p=>/[0-5]$/.test(p)));
     const {pinyin:mkBase,tone:mkTone}=markToNum(clean);
     const hasMarkTone=mkBase!==clean;
     const hasTone=hasNumTone||hasMarkTone;
@@ -313,9 +313,10 @@ function pinyinToChinese(py){
         return '○';
     }
     // 单音节拼音匹配（数字声调格式）
-    const m=clean.match(/^([a-zü]+)([1-5])?$/);
+    const m=clean.match(/^([a-zü]+)([0-5])?$/);
     if(m){
         let base=m[1],tone=m[2];
+        if(tone==='0')tone='5';
         if(!tone){
             // 无声调标记：优先尝试第5声（轻声），再尝试第1声
             const k5=base+'5';
@@ -375,7 +376,7 @@ function convertPinyinPartsToChineseWithFallback(pyParts, originalParts){
     const numParts=pyParts.map(p=>{
         if(!p)return p;
         if(/\d$/.test(p)){
-            return p.toLowerCase().replace('ü','v');
+            return p.toLowerCase().replace('ü','v').replace(/([a-zü])0$/, '$15');
         }
         const {pinyin,tone}=markToNum(p);
         return pinyin+tone;
@@ -414,7 +415,7 @@ function pinyinSentenceToChinese(pyStr){
     const parts=pyStr.split(/\s+/).filter(p=>p);
     const numParts=parts.map(p=>{
         if(/\d$/.test(p)){
-            return p.toLowerCase().replace('ü','v');
+            return p.toLowerCase().replace('ü','v').replace(/([a-zü])0$/, '$15');
         }
         const {pinyin,tone}=markToNum(p);
         return pinyin+tone;
@@ -585,7 +586,7 @@ function pinyinSentenceToChineseDetailed(pyStr){
     const parts=pyStr.split(/\s+/).filter(p=>p);
     const numParts=parts.map(p=>{
         if(/\d$/.test(p)){
-            return p.toLowerCase().replace('ü','v');
+            return p.toLowerCase().replace('ü','v').replace(/([a-zü])0$/, '$15');
         }
         const {pinyin,tone}=markToNum(p);
         return pinyin+tone;
@@ -958,6 +959,22 @@ function sortPinyinList(pinyinList){
         return aTone-bTone;
     });
 }
+const XINGLIAN_CHAR_EXCEPTIONS={'的':'id','吧':'oab'};
+const XINGLIAN_WORD_EXCEPTIONS={'id':'de0','oab':'ba0'};
+let __preferredCharsDone=false;
+function ensurePreferredChars(){
+    if(__preferredCharsDone)return;
+    __preferredCharsDone=true;
+    const set=(k,ch)=>{
+        let a=PINYIN_CHINESE_MAP[k];
+        if(!a){a=[];PINYIN_CHINESE_MAP[k]=a;}
+        const i=a.indexOf(ch);
+        if(i>0)a.splice(i,1);
+        if(i!==0)a.unshift(ch);
+    };
+    ['de','de5','de0'].forEach(k=>set(k,'的'));
+    ['ba','ba5','ba0'].forEach(k=>set(k,'吧'));
+}
 function strictForwardConvert(p,d=false){
     debugSteps=[];
     if(d)debugSteps.push(`开始转换："${p}"`);
@@ -971,8 +988,9 @@ function strictForwardConvert(p,d=false){
         return 'innen';
     }
     let{pinyin:cp,tone:tn}=markToNum(p);
-    const nm=cp.match(/^([a-zü]+)([1-5])$/);
+    const nm=cp.match(/^([a-zü]+)([0-5])$/);
     if(nm){cp=nm[1];tn=parseInt(nm[2]);}
+    if(tn===0)tn=5;
     if(tn<1||tn>5)tn=1;
     cp=cp.toLowerCase().replace('ü','v');
     if(d)debugSteps.push(`清洗后拼音："${cp}"，声调：${tn}`);
@@ -1101,6 +1119,11 @@ function strictReverseConvert(xinglianWord,d=false){
         debugSteps.push(`【第2步】标准化：转为小写并去除空格 → "${xinglianWord.toLowerCase().trim()}"`);
     }
     const cleanXl=xinglianWord.toLowerCase().trim();
+    if(XINGLIAN_WORD_EXCEPTIONS[cleanXl]){
+        const back=XINGLIAN_WORD_EXCEPTIONS[cleanXl];
+        if(d)debugSteps.push(`匹配固定规则：${cleanXl} → ${back}`);
+        return{word:xinglianWord,candidates:[back],rawCandidates:[back],bestGuess:back};
+    }
     if(cleanXl==='innel'){
         if(d)debugSteps.push(`匹配固定规则：innel → en2`);
         return{
@@ -2465,6 +2488,7 @@ function doTranslate(){
             }
         }
         outputDom.textContent=pyOutput.join(' ');
+        ensurePreferredChars();
         // 先逐字翻译
         const singleCn=[];
         let xlPunctIdx = 0;
@@ -2598,7 +2622,7 @@ function doTranslate(){
         let charIdx = 0;
         for(const part of parts){
             if(part.translatable){
-                const xlText = simplifyXinglianText(strictForwardConvert(part.pinyin,false));
+                const xlText = (part.original && part.original.length===1 && XINGLIAN_CHAR_EXCEPTIONS[part.original]) || simplifyXinglianText(strictForwardConvert(part.pinyin,false));
                 res.push(xlText);
                 if(part.isPolyphone){
                     hasPolyphone = true;
@@ -2771,7 +2795,7 @@ if(target.closest('.tab-btn')){
             document.getElementById('comboDetailPanel').style.display='none';
             if(id==='pyDict'){renderPyNav();renderPyContent();renderPyTable();}
             else if(id==='doubleComboDict'){renderComboNav();renderComboContent();renderComboTable();}
-            else if(id==='tripleCombo'){renderTripleFirstNav();renderTripleTable();}
+            else if(id==='tripleCombo'){if(document.getElementById('tripleTable')){renderTripleFirstNav();renderTripleTable();}}
             updateDictStats();
             initSettings();
             renderFloatNav();
@@ -3070,21 +3094,6 @@ if(target.closest('.tab-btn')){
             copyToClipboard(t).then(ok=>{
                 alert(ok?'复制成功':'复制失败，请手动复制');
             });
-            return;
-        }
-        if(target.closest('#trainModeRead')){
-            GLOBAL_STATE.trainMode='read';
-            startTrainRead();
-            return;
-        }
-        if(target.closest('#trainModeWrite')){
-            GLOBAL_STATE.trainMode='write';
-            startTrainWrite();
-            return;
-        }
-        if(target.closest('#trainModeConvert')){
-            GLOBAL_STATE.trainMode='convert';
-            startTrainConvert();
             return;
         }
         if(target.closest('#trainSubmitBtn')){
@@ -3389,10 +3398,6 @@ document.getElementById('swapLangBtn').addEventListener('click', function () {
 });
 
 /* ===================== 汉字词库检索 / 朗读 / 收藏 ===================== */
-const XL_DATA_URL = 'data/xl-data.js';
-let xlCharsIndex = null, xlWordsList = null, xlDataPromise = null;
-const wordSearchState = { kw: '', results: [], page: 1, pageSize: 40 };
-
 function showToast(msg){
     let t = document.getElementById('xlToast');
     if(!t){ t = document.createElement('div'); t.id = 'xlToast'; t.className = 'xl-toast'; document.body.appendChild(t); }
@@ -3400,140 +3405,6 @@ function showToast(msg){
     t.classList.add('show');
     clearTimeout(t._timer);
     t._timer = setTimeout(() => t.classList.remove('show'), 1800);
-}
-
-function loadXlData(){
-    if(window.XL_CHARS && window.XL_WORDS) return Promise.resolve();
-    if(xlDataPromise) return xlDataPromise;
-    xlDataPromise = new Promise((resolve, reject) => {
-        const sc = document.createElement('script');
-        sc.src = XL_DATA_URL;
-        sc.onload = resolve;
-        sc.onerror = () => { xlDataPromise = null; reject(new Error('load failed')); };
-        document.head.appendChild(sc);
-    });
-    return xlDataPromise;
-}
-
-async function initWordDict(){
-    const meta = document.getElementById('wordSearchMeta');
-    if(!meta) return;
-    if(xlCharsIndex && xlWordsList){
-        meta.textContent = `已载入 ${xlCharsIndex.size} 个汉字 · ${xlWordsList.length} 个常用词`;
-        return;
-    }
-    if(window.XL_CHARS && window.XL_WORDS){
-        xlCharsIndex = new Map(window.XL_CHARS.map(c => [c[0], c[1]]));
-        xlWordsList = window.XL_WORDS;
-        meta.textContent = `已载入 ${xlCharsIndex.size} 个汉字 · ${xlWordsList.length} 个常用词`;
-        return;
-    }
-    meta.textContent = '正在载入字词总表（约 5 MB）…';
-    try{
-        await loadXlData();
-        xlCharsIndex = new Map(window.XL_CHARS.map(c => [c[0], c[1]]));
-        xlWordsList = window.XL_WORDS;
-        meta.textContent = `已载入 ${xlCharsIndex.size} 个汉字 · ${xlWordsList.length} 个常用词`;
-    }catch(e){
-        meta.textContent = '字词总表载入失败，请刷新后重试';
-    }
-}
-
-function syllableToXl(sy){
-    if(!sy) return '';
-    let s = String(sy).toLowerCase().replace('ü', 'v');
-    if(!/[1-5]$/.test(s)) s += '1';
-    try{ return simplifyXinglianText(strictForwardConvert(s, false)); }catch(e){ return ''; }
-}
-
-function pinyinLineToXl(line){
-    return String(line || '').split(/\s+/).map(syllableToXl).filter(Boolean).join(' ');
-}
-
-function runWordSearch(){
-    if(!xlWordsList){ initWordDict().then(() => runWordSearch()); return; }
-    const input = document.getElementById('wordSearchInput');
-    const q = (input && input.value || '').trim().toLowerCase();
-    wordSearchState.kw = q;
-    wordSearchState.page = 1;
-    if(!q){ wordSearchState.results = []; renderWordResults(); return; }
-
-    const results = [];
-    const seen = new Set();
-    const isHan = /[\u4e00-\u9fff]/.test(q);
-
-    if(isHan){
-        const readings = xlCharsIndex.get(q);
-        if(readings){
-            results.push({ type: 'char', text: q, py: readings.split(',').join(' / '), readings: readings.split(',') });
-            seen.add(q);
-        }
-        for(const w of xlWordsList){
-            if(w[0].includes(q)){ results.push({ type: 'word', text: w[0], py: w[1] }); if(results.length >= 240) break; }
-        }
-    }else{
-        let n = 0;
-        for(const c of window.XL_CHARS){
-            if(c[1].indexOf(q) !== -1 && !seen.has(c[0])){
-                seen.add(c[0]);
-                results.push({ type: 'char', text: c[0], py: c[1].split(',').join(' / '), readings: c[1].split(',') });
-                if(++n >= 60) break;
-            }
-        }
-        // 当作星联语再查一次（逐字转换匹配）
-        for(const c of window.XL_CHARS){
-            if(seen.has(c[0])) continue;
-            const xs = c[1].split(',').map(syllableToXl);
-            if(xs.some(x => x && x.indexOf(q) !== -1)){
-                seen.add(c[0]);
-                results.push({ type: 'char', text: c[0], py: c[1].split(',').join(' / '), readings: c[1].split(',') });
-                if(++n >= 60) break;
-            }
-        }
-        for(const w of xlWordsList){
-            if(w[1].indexOf(q) !== -1){ results.push({ type: 'word', text: w[0], py: w[1] }); if(results.length >= 240) break; }
-        }
-    }
-    wordSearchState.results = results;
-    renderWordResults();
-}
-
-function renderWordResults(){
-    const list = document.getElementById('wordResultList');
-    const info = document.getElementById('wordPageInfo');
-    if(!list) return;
-    const all = wordSearchState.results;
-    const totalPages = Math.max(1, Math.ceil(all.length / wordSearchState.pageSize));
-    if(wordSearchState.page > totalPages) wordSearchState.page = totalPages;
-    const start = (wordSearchState.page - 1) * wordSearchState.pageSize;
-    const rows = all.slice(start, start + wordSearchState.pageSize);
-
-    if(!all.length){
-        list.innerHTML = '<div class="word-empty">没有找到匹配结果，换个关键词试试</div>';
-    }else{
-        list.innerHTML = rows.map(it => {
-            if(it.type === 'char'){
-                const xls = it.readings.slice(0, 4).map(r => `${numToMark(r)} → ${syllableToXl(r)}`).join('　');
-                return `<div class="word-item">
-                    <span class="word-char">${it.text}</span>
-                    <span class="word-body">
-                        <span class="word-py">${it.py}</span>
-                        <span class="word-xl">${xls}</span>
-                    </span>
-                    <button class="chip-btn word-copy" type="button" data-copy="${it.readings[0] ? syllableToXl(it.readings[0]) : ''}">复制星联语</button>
-                </div>`;
-            }
-            return `<div class="word-item">
-                <span class="word-text">${it.text}</span>
-                <span class="word-body">
-                    <span class="word-py">${numToMark(it.py)}</span>
-                    <span class="word-xl">${pinyinLineToXl(it.py)}</span>
-                </span>
-                <button class="chip-btn word-copy" type="button" data-copy="${pinyinLineToXl(it.py)}">复制星联语</button>
-            </div>`;
-        }).join('');
-    }
-    if(info) info.textContent = `${wordSearchState.page} / ${totalPages}（共 ${all.length} 条）`;
 }
 
 /* 朗读 */
@@ -3574,13 +3445,6 @@ function renderFavs(){
 
 document.addEventListener('click', function(e){
     const t = e.target;
-    if(t.closest('#wordSearchBtn')){ runWordSearch(); return; }
-    if(t.closest('#wordPrevPage')){ if(wordSearchState.page > 1){ wordSearchState.page--; renderWordResults(); } return; }
-    if(t.closest('#wordNextPage')){
-        const totalPages = Math.max(1, Math.ceil(wordSearchState.results.length / wordSearchState.pageSize));
-        if(wordSearchState.page < totalPages){ wordSearchState.page++; renderWordResults(); }
-        return;
-    }
     const copyBtn = t.closest('[data-copy]');
     if(copyBtn){
         const text = copyBtn.getAttribute('data-copy');
@@ -3611,10 +3475,6 @@ document.addEventListener('click', function(e){
         speakText((document.getElementById('translateInput').value || '').trim());
         return;
     }
-    if(t.closest('.dict-tab[data-tab="wordDict"]')){
-        setTimeout(initWordDict, 0);
-        return;
-    }
 });
 
 document.addEventListener('input', function(e){
@@ -3622,17 +3482,6 @@ document.addEventListener('input', function(e){
         const n = (e.target.value || '').replace(/\s/g, '').length;
         const el = document.getElementById('charCount');
         if(el) el.textContent = n;
-    }
-    if(e.target && e.target.id === 'wordSearchInput'){
-        clearTimeout(window.__wordSearchTimer);
-        window.__wordSearchTimer = setTimeout(runWordSearch, 260);
-    }
-});
-
-document.addEventListener('keydown', function(e){
-    if(e.target && e.target.id === 'wordSearchInput' && e.key === 'Enter'){
-        e.preventDefault();
-        runWordSearch();
     }
 });
 
@@ -3785,3 +3634,269 @@ document.addEventListener('click', function(e){
     doTranslate();
 });
 refreshAiToggle();
+
+/* ===================== 教学模式 ===================== */
+const TEACH_KEY = 'xl_teach_state_v1';
+const TEACH_STATE = (() => {
+    try{ return JSON.parse(localStorage.getItem(TEACH_KEY) || '{"done":[],"idx":0}'); }
+    catch(e){ return {done: [], idx: 0}; }
+})();
+function saveTeachState(){
+    try{ localStorage.setItem(TEACH_KEY, JSON.stringify(TEACH_STATE)); }catch(e){}
+}
+
+function toXinglian(cn){
+    return chineseSentenceToPinyin(cn).map(p => {
+        if(!p.translatable) return p.original;
+        if(p.original && p.original.length === 1 && XINGLIAN_CHAR_EXCEPTIONS[p.original]) return XINGLIAN_CHAR_EXCEPTIONS[p.original];
+        return simplifyXinglianText(strictForwardConvert(p.pinyin, false));
+    }).join(' ');
+}
+function toNumericPinyin(cn){
+    return chineseSentenceToPinyin(cn).map(p => p.translatable ? p.pinyin.replace(/5/g, '0') : p.original).join(' ');
+}
+function teachTable(rows, head){
+    return `<table class="teach-table"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${
+        rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')
+    }</tbody></table>`;
+}
+function exampleRows(words){
+    return words.map(w => [w, toNumericPinyin(w), toXinglian(w)]);
+}
+
+const TEACH_LESSONS = [
+    {
+        id: 'intro',
+        title: '认识星联语',
+        desc: '构词骨架与三个组成部分',
+        body: () => `
+            <p>星联语是一套<strong>人工构造语</strong>：每个汉字先还原成拼音，再拆成 <code>声母 + 韵母 + 声调</code> 三段，分别按固定规则映射成字母。</p>
+            <div class="teach-formula">汉字 → 拼音 → 声母变形 + 韵母变形 + 声调字母</div>
+            <p>因此同一个汉字永远写出同一个星联词；反向则可能对应多个同音汉字，需要结合语境判断。</p>
+            <h4>先看三组例子</h4>
+            ${teachTable(exampleRows(['你好', '中国', '老师']), ['中文', '拼音', '星联语'])}
+            <div class="teach-tip">提示：拼音里的 0 表示轻声，例如「的」写作 <code>de0</code>。</div>`,
+        quiz: [['你好'], ['中国'], ['老师']]
+    },
+    {
+        id: 'shengmu',
+        title: '声母变形',
+        desc: '21 个声母对应的字母与本体重音',
+        body: () => {
+            const rows = Object.entries(SHENGMU_MAP).map(([py, xl]) => [py, xl, xl[0]]);
+            return `
+            <p>每个声母对应 1～2 个字母。第一个字母是<strong>本体</strong>，第二个字母是<strong>非本体</strong>；只有本体时两者相同。</p>
+            ${teachTable(rows, ['拼音声母', '星联字母', '本体'])}
+            <div class="teach-tip">本体声母还会被插进韵母中间，用来标记音节边界，后面的课会用到。</div>`;
+        },
+        quiz: [['北京'], ['妈妈']]
+    },
+    {
+        id: 'yunmu',
+        title: '韵母变形',
+        desc: '特殊韵母与常规韵母',
+        body: () => {
+            const rows = Object.entries(YUNMU_SPECIAL_MAP).map(([cn, xl]) => [cn, xl]);
+            return `
+            <p>大多数字母保持不变，只有少数韵母需要替换：</p>
+            ${teachTable(rows, ['拼音韵母', '星联韵母'])}
+            <p>ü 统一写成 <code>v</code>，例如 <code>lü4 → lv4</code>。</p>
+            ${teachTable(exampleRows(['绿色', '女', '略']), ['中文', '拼音', '星联语'])}`;
+        },
+        quiz: [['绿色'], ['女儿']]
+    },
+    {
+        id: 'single',
+        title: '单韵母构词',
+        desc: '公式：非本体 + 韵母 + 本体',
+        body: () => `
+            <p>当韵母只有一个字母时，构词公式固定为：</p>
+            <div class="teach-formula">非本体声母 + 韵母 + 本体声母</div>
+            <p>例如 <code>ba1</code>：声母 b 的本体是 <code>b</code>、非本体是 <code>p</code>，于是写成 <code>p</code> + <code>a</code> + <code>b</code>。</p>
+            ${teachTable(exampleRows(['八', '怕', '妈', '大']), ['中文', '拼音', '星联语'])}`,
+        quiz: [['八'], ['大']]
+    },
+    {
+        id: 'multi',
+        title: '多韵母构词',
+        desc: '本体声母插入位置',
+        body: () => `
+            <p>韵母有两个及以上字母时，本体声母会插到韵母中间，把前后两半隔开：</p>
+            <div class="teach-formula">韵母前段 + 本体声母 + 韵母后段 + 本体声母</div>
+            <p>插入位置由韵母长度决定（<code>ang / eng / ing / ong</code> 按 2 个韵母计算），所以同一个声母在不同韵母里的位置会变化。</p>
+            ${teachTable(exampleRows(['中', '上', '星', '联']), ['中文', '拼音', '星联语'])}`,
+        quiz: [['中'], ['星']]
+    },
+    {
+        id: 'tone',
+        title: '声调与轻声 0',
+        desc: '取第 n 个韵母，轻声记 0',
+        body: () => `
+            <p>声调不再用符号，而是从音节里的韵母字母中<strong>取第 n 个</strong>追加到末尾：一声取第 1 个，四声取第 4 个。</p>
+            <p><strong>轻声记作 0</strong>，不取序号，而是按“韵母不足”的规则轮询下一位韵母。</p>
+            ${teachTable(exampleRows(['妈', '麻', '马', '骂', '的', '吧']), ['中文', '拼音', '星联语'])}
+            <div class="teach-tip">「的」写作 <code>id</code>，「吧」写作 <code>oab</code>，属于固定特例，下一课会讲。</div>`,
+        quiz: [['妈'], ['马'], ['麻']]
+    },
+    {
+        id: 'merge',
+        title: '相邻韵母合并',
+        desc: '合并与追加的判定',
+        body: () => `
+            <p>构词后如果出现<strong>相邻且相同</strong>的韵母字母，会按规则合并或追加，避免单词出现歧义。</p>
+            <p>判断顺序：先检查相邻重复 → 再按声调是否重复决定是否追加。</p>
+            ${teachTable(exampleRows(['爸爸', '妈妈', '哥哥', '姐姐']), ['中文', '拼音', '星联语'])}`,
+        quiz: [['爸爸'], ['姐姐']]
+    },
+    {
+        id: 'poll',
+        title: '轮询与追加',
+        desc: '韵母不够时往后取',
+        body: () => `
+            <p>当音节里的韵母数量少于声调序号（例如四声但只有 2 个韵母），就从最后一个韵母开始，按韵母顺序表<strong>向后轮询</strong>。</p>
+            <p>若轮询得到的字母与已有韵母重复，则再<strong>追加一次</strong>本体声母以示区分。</p>
+            ${teachTable(exampleRows(['四', '是', '十', '死']), ['中文', '拼音', '星联语'])}`,
+        quiz: [['四'], ['十']]
+    },
+    {
+        id: 'fixed',
+        title: '固定规则',
+        desc: 'en2 与 nen2',
+        body: () => `
+            <p>有两个拼音不按常规规则生成，直接记忆：</p>
+            ${teachTable([['en2 / én', 'innel'], ['nen2 / nén', 'innen']], ['拼音', '星联语'])}
+            <p>反向转换时这两个词也优先匹配，不会拆成字母逐个解析。</p>
+            ${teachTable(exampleRows(['嗯', '嫩']), ['中文', '拼音', '星联语'])}`,
+        quiz: [['嫩']]
+    },
+    {
+        id: 'special',
+        title: '多音字与固定特例',
+        desc: '的 → id，吧 → oab',
+        body: () => `
+            <p>两个高频轻声字使用固定写法，避免与其他音节同形：</p>
+            ${teachTable([['的 (de0)', 'id'], ['吧 (ba0)', 'oab']], ['拼音', '星联语'])}
+            <p>反向转换时 <code>id</code> 固定还原为「的」，<code>oab</code> 固定还原为「吧」。</p>
+            <p>多音字（如「行」「重」「长」）在翻译结果中用<strong>虚线高亮</strong>，点击可以切换读音并重新生成星联语。</p>
+            ${teachTable(exampleRows(['我的书', '走吧', '银行']), ['中文', '拼音', '星联语'])}
+            <div class="teach-tip">完成全部课程后，回到翻译页用长句练习，效果最好。</div>`,
+        quiz: [['我的'], ['走吧']]
+    }
+];
+
+function teachNormalizeXl(v){
+    return expandSimplifiedXinglian(String(v || '').toLowerCase().replace(/\s+/g, ' ').trim());
+}
+function teachNormalizePy(v){
+    return String(v || '').toLowerCase().replace(/[0-9]/g, '').replace(/[āáǎàōóǒòēéěèīíǐìūúǔùǖǘǚǜ]/g, ch => {
+        const map = {'ā':'a','á':'a','ǎ':'a','à':'a','ō':'o','ó':'o','ǒ':'o','ò':'o','ē':'e','é':'e','ě':'e','è':'e','ī':'i','í':'i','ǐ':'i','ì':'i','ū':'u','ú':'u','ǔ':'u','ù':'u','ǖ':'v','ǘ':'v','ǚ':'v','ǜ':'v'};
+        return map[ch] || ch;
+    }).replace(/\s+/g, ' ').trim();
+}
+function renderTeachNav(){
+    const nav = document.getElementById('teachNav');
+    if(!nav) return;
+    nav.innerHTML = TEACH_LESSONS.map((l, i) => {
+        const done = TEACH_STATE.done.includes(l.id);
+        return `<button class="teach-nav-item ${i === TEACH_STATE.idx ? 'active' : ''}" data-lesson="${i}" type="button">
+            <span class="teach-nav-no">${done ? '✓' : i + 1}</span>
+            <span class="teach-nav-text"><strong>${l.title}</strong><small>${l.desc}</small></span>
+        </button>`;
+    }).join('');
+}
+function renderTeachLesson(){
+    const main = document.getElementById('teachMain');
+    if(!main) return;
+    const idx = Math.max(0, Math.min(TEACH_STATE.idx, TEACH_LESSONS.length - 1));
+    TEACH_STATE.idx = idx;
+    const lesson = TEACH_LESSONS[idx];
+    const quizHtml = lesson.quiz.map((q, qi) => {
+        const cn = q[0];
+        return `<div class="teach-quiz-item" data-qi="${qi}">
+            <div class="teach-quiz-q"><span class="teach-quiz-no">${qi + 1}</span>把「<strong>${cn}</strong>」写成星联语（可含撇号）</div>
+            <div class="teach-quiz-row">
+                <input type="text" class="dict-input teach-input" data-qi="${qi}" placeholder="输入星联语">
+                <button class="chip-btn primary teach-check" data-qi="${qi}" type="button">检查</button>
+            </div>
+            <div class="teach-quiz-fb" id="teachFb${qi}"></div>
+        </div>`;
+    }).join('');
+
+    main.innerHTML = `
+        <div class="teach-head">
+            <span class="teach-badge">第 ${idx + 1} 课 / 共 ${TEACH_LESSONS.length} 课</span>
+            <h2>${lesson.title}</h2>
+            <p>${lesson.desc}</p>
+        </div>
+        <div class="teach-body">${lesson.body()}</div>
+        <div class="teach-quiz"><h3>随堂练习</h3>${quizHtml}</div>
+        <div class="teach-actions">
+            <button class="chip-btn" id="teachPrev" type="button" ${idx === 0 ? 'disabled' : ''}>上一课</button>
+            <button class="chip-btn primary" id="teachNext" type="button" ${idx === TEACH_LESSONS.length - 1 ? 'disabled' : ''}>下一课</button>
+        </div>`;
+    updateTeachProgress();
+}
+function updateTeachProgress(){
+    const bar = document.getElementById('teachProgressBar');
+    const text = document.getElementById('teachProgressText');
+    const name = document.getElementById('teachLessonName');
+    const done = TEACH_LESSONS.filter(l => TEACH_STATE.done.includes(l.id)).length;
+    if(bar) bar.style.width = Math.round(done / TEACH_LESSONS.length * 100) + '%';
+    if(text) text.textContent = `已完成 ${done} / ${TEACH_LESSONS.length}`;
+    if(name) name.textContent = `正在学习：${TEACH_LESSONS[TEACH_STATE.idx].title}`;
+}
+function teachMarkDoneIfAll(){
+    const lesson = TEACH_LESSONS[TEACH_STATE.idx];
+    const inputs = document.querySelectorAll('.teach-input');
+    if(!inputs.length) return;
+    let all = true;
+    inputs.forEach((inp, i) => {
+        if(teachNormalizeXl(inp.value) !== teachNormalizeXl(toXinglian(lesson.quiz[i][0]))) all = false;
+    });
+    if(all && !TEACH_STATE.done.includes(lesson.id)){
+        TEACH_STATE.done.push(lesson.id);
+        saveTeachState();
+        renderTeachNav();
+        updateTeachProgress();
+    }
+}
+document.addEventListener('click', function(e){
+    const t = e.target;
+    const navItem = t.closest('.teach-nav-item');
+    if(navItem){
+        TEACH_STATE.idx = parseInt(navItem.dataset.lesson, 10) || 0;
+        saveTeachState();
+        renderTeachNav();
+        renderTeachLesson();
+        return;
+    }
+    if(t.closest('#teachPrev') && TEACH_STATE.idx > 0){
+        TEACH_STATE.idx--; saveTeachState(); renderTeachNav(); renderTeachLesson(); return;
+    }
+    if(t.closest('#teachNext') && TEACH_STATE.idx < TEACH_LESSONS.length - 1){
+        TEACH_STATE.idx++; saveTeachState(); renderTeachNav(); renderTeachLesson(); return;
+    }
+    const checkBtn = t.closest('.teach-check');
+    if(checkBtn){
+        const qi = parseInt(checkBtn.dataset.qi, 10);
+        const cn = TEACH_LESSONS[TEACH_STATE.idx].quiz[qi][0];
+        const answer = toXinglian(cn);
+        const input = document.querySelector(`.teach-input[data-qi="${qi}"]`);
+        const fb = document.getElementById('teachFb' + qi);
+        const ok = teachNormalizeXl(input && input.value) === teachNormalizeXl(answer);
+        if(fb) fb.className = 'teach-quiz-fb ' + (ok ? 'ok' : 'bad');
+        if(fb) fb.textContent = ok ? '✓ 正确' : `✗ 再想想，正确答案：${answer}`;
+        if(ok) teachMarkDoneIfAll();
+        return;
+    }
+});
+document.addEventListener('keydown', function(e){
+    if(e.target && e.target.classList && e.target.classList.contains('teach-input') && e.key === 'Enter'){
+        e.preventDefault();
+        const qi = e.target.dataset.qi;
+        const btn = document.querySelector(`.teach-check[data-qi="${qi}"]`);
+        if(btn) btn.click();
+    }
+});
+renderTeachNav();
+renderTeachLesson();

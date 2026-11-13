@@ -27,7 +27,6 @@
                 <div class="float-nav-row">
                     <button class="float-nav-btn-item active" data-nav="dictType" data-value="pyDict">单字词典</button>
                     <button class="float-nav-btn-item" data-nav="dictType" data-value="doubleComboDict">双组合</button>
-                    <button class="float-nav-btn-item" data-nav="dictType" data-value="tripleCombo">三组合</button>
                 </div>
             </div>
         </div>
@@ -194,25 +193,16 @@
     <div class="tab-content" id="train">
         <div class="card">
             <div class="page-header">
-                <h1 class="page-title">星联语训练模式</h1>
-                <p class="page-subtitle">通过练习掌握星联语的读写与转换规则</p>
+                <h1 class="page-title">星联语教学模式</h1>
+                <p class="page-subtitle">按顺序完成 10 节课，从零掌握星联语的全部构词规则</p>
             </div>
-            <div style="display:flex;gap:10px;margin:20px 0;flex-wrap:wrap">
-                <button class="translate-btn" id="trainModeRead" style="flex:1;min-width:120px">📖 看星联猜拼音</button>
-                <button class="translate-btn" id="trainModeWrite" style="flex:1;min-width:120px">✏️ 看拼音写星联</button>
-                <button class="translate-btn" id="trainModeConvert" style="flex:1;min-width:120px">🔄 转换过程训练</button>
+            <div class="teach-progress-wrap">
+                <div class="teach-progress-info"><span id="teachProgressText">已完成 0 / 10</span><span id="teachLessonName"></span></div>
+                <div class="teach-progress"><div class="teach-progress-bar" id="teachProgressBar"></div></div>
             </div>
-            <div id="trainContent">
-                <div style="text-align:center;color:var(--text-muted);padding:40px 0">请选择上方训练模式开始练习</div>
-            </div>
-            <div style="margin-top:20px;padding:15px;background:var(--card);border-radius:8px;border:1px solid var(--border)">
-                <div style="font-weight:600;color:var(--pri);margin-bottom:8px">训练统计</div>
-                <div style="display:flex;gap:20px;color:var(--text-secondary);font-size:0.9rem">
-                    <span>总题数：<strong id="trainTotal">0</strong></span>
-                    <span>正确：<strong id="trainCorrect" style="color:var(--suc)">0</strong></span>
-                    <span>错误：<strong id="trainWrong" style="color:var(--danger)">0</strong></span>
-                    <span>正确率：<strong id="trainRate">0%</strong></span>
-                </div>
+            <div class="teach-layout">
+                <aside class="teach-nav" id="teachNav"></aside>
+                <section class="teach-main" id="teachMain"></section>
             </div>
         </div>
     </div>
@@ -247,8 +237,6 @@
             <div class="dict-tabs">
                 <div class="dict-tab active" data-tab="pyDict">单字映射词典</div>
                 <div class="dict-tab" data-tab="doubleComboDict">双字母组合表</div>
-                <div class="dict-tab" data-tab="tripleCombo">三字母组合表</div>
-                <div class="dict-tab" data-tab="wordDict">汉字词库</div>
             </div>
             <div class="copy-mode-switch">
                 <span class="copy-mode-label">复制模式：</span>
@@ -300,29 +288,6 @@
                 <div class="page-title" style="margin:30px 0 15px;font-size:1.2rem">相关拼音词典</div>
                 <div class="combo-related-pinyin" id="comboRelatedPinyin">
                     <div class="combo-related-empty">点击上方表格中的有效组合查看相关拼音</div>
-                </div>
-            </div>
-            <div id="tripleComboTab" class="dict-tab-content">
-                <div class="page-title">三字母组合三维表</div>
-                <div class="page-subtitle">选择第一个字母，查看第二×第三字母的组合矩阵。标红为不存在的组合。</div>
-                <div class="category-nav" id="tripleFirstNav"></div>
-                <div class="table-scroll">
-                    <table class="combo-table" id="tripleTable"></table>
-                </div>
-            </div>
-            <div id="wordDictTab" class="dict-tab-content">
-                <div class="word-search-bar">
-                    <input type="text" class="dict-input" id="wordSearchInput" placeholder="输入汉字、拼音或星联语查询，如：中 / zhong1 / einu">
-                    <button class="lab-btn primary" id="wordSearchBtn" type="button">查询</button>
-                </div>
-                <div class="word-search-meta" id="wordSearchMeta">打开本页时载入字词总表（约 5 MB）</div>
-                <div class="word-result-list" id="wordResultList">
-                    <div class="word-empty">输入关键词开始查询</div>
-                </div>
-                <div class="word-pager">
-                    <button class="chip-btn" id="wordPrevPage" type="button">上一页</button>
-                    <span class="word-page-info" id="wordPageInfo">1 / 1</span>
-                    <button class="chip-btn" id="wordNextPage" type="button">下一页</button>
                 </div>
             </div>
         </div>
