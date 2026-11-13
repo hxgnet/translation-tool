@@ -1417,7 +1417,7 @@ function buildDictionaryData(){
         for(const[xl,cn]of Object.entries(YUNMU_SPECIAL_REVERSE_MAP))if(oy.endsWith(xl)){oy=oy.replace(xl,cn);break;}
         oy=oy.replace('v','ü');
         if(!YUNMU_SORT_ORDER.includes(oy))oy='other';
-        const it={py:mp,pyRaw:p,xl:xl,sm:sm,ym:oy};
+        const it={py:mp,pyRaw:p,xl:xl,xlS:simplifyXinglianText(xl),sm:sm,ym:oy};
         fullDict.push(it);
         if(dictData[sm])dictData[sm].push(it);
         if(!yd[oy])yd[oy]=[];
@@ -1442,13 +1442,13 @@ function buildDoubleComboDictionary(){
             if(c.length===2){
                 cs.add(c);
                 if(!csm.has(c))csm.set(c,[]);
-                csm.get(c).push({py:it.py,xl:it.xl,pyRaw:it.pyRaw,sm:it.sm,ym:it.ym});
+                csm.get(c).push({py:it.py,xl:it.xl,xlS:it.xlS,pyRaw:it.pyRaw,sm:it.sm,ym:it.ym});
             }
         }
         if(s.length%2===1){
             const last=s[s.length-1];
             if(!extraChars.has(last))extraChars.set(last,[]);
-            extraChars.get(last).push({py:it.py,xl:it.xl,pyRaw:it.pyRaw,sm:it.sm,ym:it.ym});
+            extraChars.get(last).push({py:it.py,xl:it.xl,xlS:it.xlS,pyRaw:it.pyRaw,sm:it.sm,ym:it.ym});
         }
     });
     doubleComboData={tailYunmu:{},tailShengmu:{}};
@@ -1550,7 +1550,7 @@ function renderPyNav(){
             }else{
                 categoryItems=dictData.yunmu[c.key]||[];
             }
-            const hasMatch=categoryItems.some(i=>i.py.toLowerCase().includes(kw)||i.xl.includes(kw)||i.pyRaw.toLowerCase().includes(kw));
+            const hasMatch=categoryItems.some(i=>i.py.toLowerCase().includes(kw)||(i.xlS||i.xl).includes(kw)||i.pyRaw.toLowerCase().includes(kw));
             isActive=hasMatch;
         }
         navHtml+=`<button class="category-btn ${isActive?'active':''}" data-category="${c.key}">${c.label}</button>`;
@@ -1570,11 +1570,11 @@ function renderPyContent(){
             items=dictData.yunmu[GLOBAL_STATE.activeYunmuCategory]||[];
         }
     }
-    const f=kw?items.filter(i=>i.py.toLowerCase().includes(kw)||i.xl.includes(kw)||i.pyRaw.toLowerCase().includes(kw)):items;
+    const f=kw?items.filter(i=>i.py.toLowerCase().includes(kw)||(i.xlS||i.xl).includes(kw)||i.pyRaw.toLowerCase().includes(kw)):items;
     if(f.length===0){
         c.innerHTML='<div class="empty">未找到匹配结果</div>';
     }else{
-        c.innerHTML=f.map(i=>`<div class="dict-item" data-py="${i.py}" data-xl="${i.xl}" data-py-raw="${i.pyRaw}" data-sm="${i.sm}" data-ym="${i.ym}"><button class="dict-copy-btn">📋</button><div class="dict-py">${i.py}</div><div class="dict-xl">${i.xl}</div></div>`).join('');
+        c.innerHTML=f.map(i=>`<div class="dict-item" data-py="${i.py}" data-xl="${i.xl}" data-py-raw="${i.pyRaw}" data-sm="${i.sm}" data-ym="${i.ym}"><button class="dict-copy-btn">📋</button><div class="dict-py">${i.py}</div><div class="dict-xl">${i.xlS||i.xl}</div></div>`).join('');
     }
     document.getElementById('filterCount').textContent=f.length;
 }
@@ -1618,7 +1618,7 @@ function showComboDetail(combo){
         return;
     }
     titleText.textContent=`组合 "${combo}" 关联拼音`;
-    grid.innerHTML=comboItem.sources.map(s=>`<div class="combo-detail-item" data-py="${s.py}" data-py-raw="${s.pyRaw}" data-sm="${s.sm}" data-ym="${s.ym}"><span class="combo-detail-py">${s.py}</span><span class="combo-detail-xl">${s.xl}</span></div>`).join('');
+    grid.innerHTML=comboItem.sources.map(s=>`<div class="combo-detail-item" data-py="${s.py}" data-py-raw="${s.pyRaw}" data-sm="${s.sm}" data-ym="${s.ym}"><span class="combo-detail-py">${s.py}</span><span class="combo-detail-xl">${s.xlS||s.xl}</span></div>`).join('');
     panel.style.display='block';
     renderComboContent();
     renderFloatNav();
@@ -1631,7 +1631,7 @@ function updateComboRelatedPinyin(combo){
         return;
     }
     const titleHtml=`<div class="combo-related-title">组合 "${combo}" 相关拼音</div>`;
-    const gridHtml=comboItem.sources.map(s=>`<div class="combo-related-item" data-py="${s.py}" data-py-raw="${s.pyRaw}" data-sm="${s.sm}" data-ym="${s.ym}"><span class="combo-detail-py">${s.py}</span><span class="combo-detail-xl">${s.xl}</span></div>`).join('');
+    const gridHtml=comboItem.sources.map(s=>`<div class="combo-related-item" data-py="${s.py}" data-py-raw="${s.pyRaw}" data-sm="${s.sm}" data-ym="${s.ym}"><span class="combo-detail-py">${s.py}</span><span class="combo-detail-xl">${s.xlS||s.xl}</span></div>`).join('');
     container.innerHTML=titleHtml+'<div class="combo-related-grid">'+gridHtml+'</div>';
 }
 function renderPyTable(){
@@ -1952,7 +1952,7 @@ function startTrainRead(){
     const c=document.getElementById('trainContent');
     c.innerHTML=`<div style="text-align:center;padding:20px 0">
         <div style="color:var(--text-muted);margin-bottom:10px;font-size:0.9rem">请根据以下星联语写出对应拼音</div>
-        <div style="font-size:2rem;font-weight:bold;color:var(--pri);letter-spacing:4px;margin:20px 0;text-shadow:var(--glow)">${item.xl}</div>
+        <div style="font-size:2rem;font-weight:bold;color:var(--pri);letter-spacing:4px;margin:20px 0;text-shadow:var(--glow)">${item.xlS||item.xl}</div>
         <input type="text" class="lab-input" id="trainAnswerInput" placeholder="输入拼音（如：ni3）" style="width:80%;max-width:300px;margin:10px auto;display:block;text-align:center">
         <div style="margin-top:15px"><button class="translate-btn" id="trainSubmitBtn">提交答案</button> <button class="translate-btn secondary" id="trainNextBtn">下一题</button></div>
         <div id="trainFeedback" style="margin-top:15px"></div>
@@ -2003,14 +2003,17 @@ function checkTrainAnswer(){
     if(!input||!fb)return;
     const answer=input.value.trim().toLowerCase();
     if(!answer){fb.innerHTML='<span style="color:var(--text-muted)">请输入答案</span>';return;}
-    const correct=answer===GLOBAL_STATE.practiceAnswer.replace(/[1-5]/g,'')||answer===GLOBAL_STATE.practiceAnswer;
+    const expectedXl=GLOBAL_STATE.trainExpected;
+    const sameXl=expectedXl&&expandSimplifiedXinglian(answer)===expandSimplifiedXinglian(String(expectedXl).toLowerCase());
+    const correct=answer===GLOBAL_STATE.practiceAnswer.replace(/[1-5]/g,'')||answer===GLOBAL_STATE.practiceAnswer||sameXl;
     updateTrainStats(correct);
     if(correct){
         fb.innerHTML='<span style="color:var(--suc);font-weight:600;font-size:1.1rem">✓ 正确！</span>';
     }else{
         const mode=GLOBAL_STATE.trainMode;
         const expected=mode==='read'?GLOBAL_STATE.practiceAnswer:GLOBAL_STATE.trainExpected;
-        fb.innerHTML=`<span style="color:var(--danger);font-weight:600;font-size:1.1rem">✗ 错误</span><br><span style="color:var(--text-secondary)">正确答案：${expected}</span>`;
+        const expectedShow=mode==='read'?expected:simplifyXinglianText(String(expected));
+        fb.innerHTML=`<span style="color:var(--danger);font-weight:600;font-size:1.1rem">✗ 错误</span><br><span style="color:var(--text-secondary)">正确答案：${expectedShow}</span>`;
     }
     input.disabled=true;
 }
@@ -3095,7 +3098,7 @@ if(target.closest('.tab-btn')){
             const items=fullDict.filter(i=>i.xl.length>=2&&i.xl.length<=6);
             const item=items[Math.floor(Math.random()*items.length)];
             GLOBAL_STATE.practiceAnswer=item.pyRaw;
-            document.getElementById('practiceQuestion').textContent=item.xl;
+            document.getElementById('practiceQuestion').textContent=item.xlS||item.xl;
             document.getElementById('practiceAnswer').value='';
             document.getElementById('practiceResult').textContent='';
             document.getElementById('practiceArea').style.display='block';
@@ -3381,3 +3384,253 @@ document.getElementById('swapLangBtn').addEventListener('click', function () {
     input.value = text;
     doTranslate();
 });
+
+/* ===================== 汉字词库检索 / 朗读 / 收藏 ===================== */
+const XL_DATA_URL = 'data/xl-data.js';
+let xlCharsIndex = null, xlWordsList = null, xlDataPromise = null;
+const wordSearchState = { kw: '', results: [], page: 1, pageSize: 40 };
+
+function showToast(msg){
+    let t = document.getElementById('xlToast');
+    if(!t){ t = document.createElement('div'); t.id = 'xlToast'; t.className = 'xl-toast'; document.body.appendChild(t); }
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function loadXlData(){
+    if(window.XL_CHARS && window.XL_WORDS) return Promise.resolve();
+    if(xlDataPromise) return xlDataPromise;
+    xlDataPromise = new Promise((resolve, reject) => {
+        const sc = document.createElement('script');
+        sc.src = XL_DATA_URL;
+        sc.onload = resolve;
+        sc.onerror = () => { xlDataPromise = null; reject(new Error('load failed')); };
+        document.head.appendChild(sc);
+    });
+    return xlDataPromise;
+}
+
+async function initWordDict(){
+    const meta = document.getElementById('wordSearchMeta');
+    if(!meta) return;
+    if(xlCharsIndex && xlWordsList){
+        meta.textContent = `已载入 ${xlCharsIndex.size} 个汉字 · ${xlWordsList.length} 个常用词`;
+        return;
+    }
+    if(window.XL_CHARS && window.XL_WORDS){
+        xlCharsIndex = new Map(window.XL_CHARS.map(c => [c[0], c[1]]));
+        xlWordsList = window.XL_WORDS;
+        meta.textContent = `已载入 ${xlCharsIndex.size} 个汉字 · ${xlWordsList.length} 个常用词`;
+        return;
+    }
+    meta.textContent = '正在载入字词总表（约 5 MB）…';
+    try{
+        await loadXlData();
+        xlCharsIndex = new Map(window.XL_CHARS.map(c => [c[0], c[1]]));
+        xlWordsList = window.XL_WORDS;
+        meta.textContent = `已载入 ${xlCharsIndex.size} 个汉字 · ${xlWordsList.length} 个常用词`;
+    }catch(e){
+        meta.textContent = '字词总表载入失败，请刷新后重试';
+    }
+}
+
+function syllableToXl(sy){
+    if(!sy) return '';
+    let s = String(sy).toLowerCase().replace('ü', 'v');
+    if(!/[1-5]$/.test(s)) s += '1';
+    try{ return simplifyXinglianText(strictForwardConvert(s, false)); }catch(e){ return ''; }
+}
+
+function pinyinLineToXl(line){
+    return String(line || '').split(/\s+/).map(syllableToXl).filter(Boolean).join(' ');
+}
+
+function runWordSearch(){
+    if(!xlWordsList){ initWordDict().then(() => runWordSearch()); return; }
+    const input = document.getElementById('wordSearchInput');
+    const q = (input && input.value || '').trim().toLowerCase();
+    wordSearchState.kw = q;
+    wordSearchState.page = 1;
+    if(!q){ wordSearchState.results = []; renderWordResults(); return; }
+
+    const results = [];
+    const seen = new Set();
+    const isHan = /[\u4e00-\u9fff]/.test(q);
+
+    if(isHan){
+        const readings = xlCharsIndex.get(q);
+        if(readings){
+            results.push({ type: 'char', text: q, py: readings.split(',').join(' / '), readings: readings.split(',') });
+            seen.add(q);
+        }
+        for(const w of xlWordsList){
+            if(w[0].includes(q)){ results.push({ type: 'word', text: w[0], py: w[1] }); if(results.length >= 240) break; }
+        }
+    }else{
+        let n = 0;
+        for(const c of window.XL_CHARS){
+            if(c[1].indexOf(q) !== -1 && !seen.has(c[0])){
+                seen.add(c[0]);
+                results.push({ type: 'char', text: c[0], py: c[1].split(',').join(' / '), readings: c[1].split(',') });
+                if(++n >= 60) break;
+            }
+        }
+        // 当作星联语再查一次（逐字转换匹配）
+        for(const c of window.XL_CHARS){
+            if(seen.has(c[0])) continue;
+            const xs = c[1].split(',').map(syllableToXl);
+            if(xs.some(x => x && x.indexOf(q) !== -1)){
+                seen.add(c[0]);
+                results.push({ type: 'char', text: c[0], py: c[1].split(',').join(' / '), readings: c[1].split(',') });
+                if(++n >= 60) break;
+            }
+        }
+        for(const w of xlWordsList){
+            if(w[1].indexOf(q) !== -1){ results.push({ type: 'word', text: w[0], py: w[1] }); if(results.length >= 240) break; }
+        }
+    }
+    wordSearchState.results = results;
+    renderWordResults();
+}
+
+function renderWordResults(){
+    const list = document.getElementById('wordResultList');
+    const info = document.getElementById('wordPageInfo');
+    if(!list) return;
+    const all = wordSearchState.results;
+    const totalPages = Math.max(1, Math.ceil(all.length / wordSearchState.pageSize));
+    if(wordSearchState.page > totalPages) wordSearchState.page = totalPages;
+    const start = (wordSearchState.page - 1) * wordSearchState.pageSize;
+    const rows = all.slice(start, start + wordSearchState.pageSize);
+
+    if(!all.length){
+        list.innerHTML = '<div class="word-empty">没有找到匹配结果，换个关键词试试</div>';
+    }else{
+        list.innerHTML = rows.map(it => {
+            if(it.type === 'char'){
+                const xls = it.readings.slice(0, 4).map(r => `${numToMark(r)} → ${syllableToXl(r)}`).join('　');
+                return `<div class="word-item">
+                    <span class="word-char">${it.text}</span>
+                    <span class="word-body">
+                        <span class="word-py">${it.py}</span>
+                        <span class="word-xl">${xls}</span>
+                    </span>
+                    <button class="chip-btn word-copy" type="button" data-copy="${it.readings[0] ? syllableToXl(it.readings[0]) : ''}">复制星联语</button>
+                </div>`;
+            }
+            return `<div class="word-item">
+                <span class="word-text">${it.text}</span>
+                <span class="word-body">
+                    <span class="word-py">${numToMark(it.py)}</span>
+                    <span class="word-xl">${pinyinLineToXl(it.py)}</span>
+                </span>
+                <button class="chip-btn word-copy" type="button" data-copy="${pinyinLineToXl(it.py)}">复制星联语</button>
+            </div>`;
+        }).join('');
+    }
+    if(info) info.textContent = `${wordSearchState.page} / ${totalPages}（共 ${all.length} 条）`;
+}
+
+/* 朗读 */
+function speakText(text){
+    if(!text){ showToast('没有可朗读的内容'); return; }
+    if(!('speechSynthesis' in window)){ showToast('当前浏览器不支持朗读'); return; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    u.rate = 0.95;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+}
+
+/* 收藏夹 */
+const FAV_KEY = 'xl_favorites_v1';
+function getFavs(){
+    try{ return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); }catch(e){ return []; }
+}
+function saveFavs(list){
+    try{ localStorage.setItem(FAV_KEY, JSON.stringify(list.slice(0, 300))); }catch(e){}
+}
+function renderFavs(){
+    const box = document.getElementById('favList');
+    if(!box) return;
+    const favs = getFavs();
+    if(!favs.length){
+        box.innerHTML = '<div class="word-empty">还没有收藏，翻译后点「收藏」即可保存</div>';
+        return;
+    }
+    box.innerHTML = favs.map((f, i) => `<div class="fav-item">
+        <div class="fav-text"><span class="fav-src">${f.q}</span><span class="fav-out">${f.a}</span></div>
+        <span class="pane-actions">
+            <button class="chip-btn fav-copy" type="button" data-copy="${f.a}">复制</button>
+            <button class="chip-btn fav-del" type="button" data-idx="${i}">删除</button>
+        </span>
+    </div>`).join('');
+}
+
+document.addEventListener('click', function(e){
+    const t = e.target;
+    if(t.closest('#wordSearchBtn')){ runWordSearch(); return; }
+    if(t.closest('#wordPrevPage')){ if(wordSearchState.page > 1){ wordSearchState.page--; renderWordResults(); } return; }
+    if(t.closest('#wordNextPage')){
+        const totalPages = Math.max(1, Math.ceil(wordSearchState.results.length / wordSearchState.pageSize));
+        if(wordSearchState.page < totalPages){ wordSearchState.page++; renderWordResults(); }
+        return;
+    }
+    const copyBtn = t.closest('[data-copy]');
+    if(copyBtn){
+        const text = copyBtn.getAttribute('data-copy');
+        if(text) copyToClipboard(text).then(ok => showToast(ok ? '已复制' : '复制失败'));
+        return;
+    }
+    const delBtn = t.closest('.fav-del');
+    if(delBtn){
+        const list = getFavs();
+        list.splice(parseInt(delBtn.dataset.idx, 10), 1);
+        saveFavs(list);
+        renderFavs();
+        return;
+    }
+    if(t.closest('#favBtn')){
+        const q = (document.getElementById('translateInput').value || '').trim();
+        const a = (document.getElementById('translateOutput').textContent || '').trim();
+        if(!q || !a || a === '翻译结果将显示在这里'){ showToast('先翻译一句再收藏'); return; }
+        const list = getFavs();
+        if(list.some(f => f.q === q && f.a === a)){ showToast('已经收藏过了'); return; }
+        list.unshift({ q: q, a: a, t: Date.now() });
+        saveFavs(list);
+        renderFavs();
+        showToast('已加入收藏夹');
+        return;
+    }
+    if(t.closest('#speakInputBtn')){
+        speakText((document.getElementById('translateInput').value || '').trim());
+        return;
+    }
+    if(t.closest('.dict-tab[data-tab="wordDict"]')){
+        setTimeout(initWordDict, 0);
+        return;
+    }
+});
+
+document.addEventListener('input', function(e){
+    if(e.target && e.target.id === 'translateInput'){
+        const n = (e.target.value || '').replace(/\s/g, '').length;
+        const el = document.getElementById('charCount');
+        if(el) el.textContent = n;
+    }
+    if(e.target && e.target.id === 'wordSearchInput'){
+        clearTimeout(window.__wordSearchTimer);
+        window.__wordSearchTimer = setTimeout(runWordSearch, 260);
+    }
+});
+
+document.addEventListener('keydown', function(e){
+    if(e.target && e.target.id === 'wordSearchInput' && e.key === 'Enter'){
+        e.preventDefault();
+        runWordSearch();
+    }
+});
+
+renderFavs();

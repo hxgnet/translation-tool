@@ -144,8 +144,11 @@
                     <div class="pane">
                         <textarea class="translate-input" id="translateInput" placeholder="输入中文（你好世界）、拼音（nǐ hǎo / ni3 hao3）或星联语（einu aeoho）"></textarea>
                         <div class="pane-foot">
-                            <span class="pane-hint">自动识别输入内容 · Ctrl + Enter 翻译</span>
-                            <button class="chip-btn" id="clearTranslateBtn" type="button">清空</button>
+                            <span class="pane-hint"><span id="charCount">0</span> 字 · Ctrl + Enter 翻译</span>
+                            <span class="pane-actions">
+                                <button class="chip-btn" id="speakInputBtn" type="button">朗读</button>
+                                <button class="chip-btn" id="clearTranslateBtn" type="button">清空</button>
+                            </span>
                         </div>
                     </div>
                     <div class="pane pane-result">
@@ -153,7 +156,10 @@
                         <div class="translate-chinese" id="translateChineseOutput" style="display:none"></div>
                         <div class="pane-foot">
                             <span class="pane-hint">翻译记录自动保存</span>
-                            <button class="chip-btn primary" id="copyTranslateBtn" type="button">复制</button>
+                            <span class="pane-actions">
+                                <button class="chip-btn" id="favBtn" type="button">收藏</button>
+                                <button class="chip-btn primary" id="copyTranslateBtn" type="button">复制</button>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -171,6 +177,15 @@
                     <div class="history-list" id="historyList">
                         <div class="history-empty">暂无翻译记录，清空内容时将自动保存当前翻译</div>
                     </div>
+                </div>
+            </div>
+            <div class="collapse">
+                <div class="collapse-header">
+                    <div class="collapse-title">收藏夹</div>
+                    <svg class="collapse-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </div>
+                <div class="collapse-content">
+                    <div class="fav-list" id="favList"><div class="word-empty">还没有收藏，翻译后点「收藏」即可保存</div></div>
                 </div>
             </div>
         </section>
@@ -231,6 +246,7 @@
                 <div class="dict-tab active" data-tab="pyDict">单字映射词典</div>
                 <div class="dict-tab" data-tab="doubleComboDict">双字母组合表</div>
                 <div class="dict-tab" data-tab="tripleCombo">三字母组合表</div>
+                <div class="dict-tab" data-tab="wordDict">汉字词库</div>
             </div>
             <div class="copy-mode-switch">
                 <span class="copy-mode-label">复制模式：</span>
@@ -290,6 +306,21 @@
                 <div class="category-nav" id="tripleFirstNav"></div>
                 <div class="table-scroll">
                     <table class="combo-table" id="tripleTable"></table>
+                </div>
+            </div>
+            <div id="wordDictTab" class="dict-tab-content">
+                <div class="word-search-bar">
+                    <input type="text" class="dict-input" id="wordSearchInput" placeholder="输入汉字、拼音或星联语查询，如：中 / zhong1 / einu">
+                    <button class="lab-btn primary" id="wordSearchBtn" type="button">查询</button>
+                </div>
+                <div class="word-search-meta" id="wordSearchMeta">打开本页时载入字词总表（约 5 MB）</div>
+                <div class="word-result-list" id="wordResultList">
+                    <div class="word-empty">输入关键词开始查询</div>
+                </div>
+                <div class="word-pager">
+                    <button class="chip-btn" id="wordPrevPage" type="button">上一页</button>
+                    <span class="word-page-info" id="wordPageInfo">1 / 1</span>
+                    <button class="chip-btn" id="wordNextPage" type="button">下一页</button>
                 </div>
             </div>
         </div>
