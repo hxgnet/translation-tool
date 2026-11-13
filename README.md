@@ -37,11 +37,13 @@ xdg-open index.html    # Linux
 
 ```
 translation-tool/
-├── index.html   # 全部界面、样式与转换逻辑（自包含，无外部依赖）
+├── index.html   # 页面结构与内嵌图标
+├── styles.css   # 界面样式（现代化翻译器布局）
+├── app.js       # 转换规则与词典数据
 └── README.md
 ```
 
 ## 说明
 
-- 转换规则、词典数据全部内置于 `index.html`，不访问任何网络接口，不收集用户数据
+- 纯静态站点，转换规则与词典数据全部打包在 `app.js`，不访问任何网络接口，不收集用户数据
 - 版权归原作者所有：制作者 argza ionmo iainxix、虎孝服务、G网工作室
