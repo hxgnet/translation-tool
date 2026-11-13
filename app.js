@@ -2794,8 +2794,8 @@ if(target.closest('.tab-btn')){
                 updateDictStats();
             }
             if(id==='train'){
-                if(window.TEACH_CORPUS) renderTeachCorpus();
-                else ensureTeachCorpus();
+                if(window.PRACTICE_BANK) renderPractice();
+                else ensurePracticeBank();
             }
             initSettings();
             renderFloatNav();
@@ -3691,7 +3691,7 @@ const TEACH_LESSONS = [
             <div class="teach-formula">汉字 → 拼音 → 声母变形 + 韵母变形 + 声调字母</div>
             <p>因此同一个汉字永远写出同一个星联词；反向则可能对应多个同音汉字，需要结合语境判断。</p>
             <h4>学习顺序</h4>
-            <p>建议按课程顺序学习：先认识声母和韵母的变形表，再学单韵母、多韵母的构词公式，最后掌握声调、轮询和固定特例。每节课后都配有随堂练习和扩展词表，练习通过后进度会自动保存。</p>
+            <p>建议按课程顺序学习：先认识声母和韵母的变形表，再学单韵母、多韵母的构词公式，最后掌握声调、轮询和固定特例。每节课后都配有随堂练习和场景练习，练习通过后进度会自动保存。</p>
             <h4>三个组成部分</h4>
             ${teachTable([['声母', '音节开头的辅音，如 b、zh、sh', '变形为 1～2 个字母，第一个是本体'], ['韵母', '声母后面的部分，如 a、ang、ian', '特殊韵母 ang/eng/ing/ong/ü 需要替换'], ['声调', '一二三四声与轻声', '取韵母中的第 n 个字母；轻声跳过声调转变']], ['部分', '含义', '在星联语中的表现'])}
             <h4>先看三组例子</h4>
@@ -3827,71 +3827,121 @@ function teachNormalizePy(v){
         return map[ch] || ch;
     }).replace(/\s+/g, ' ').trim();
 }
-/* ---------- 教学扩展词表（按需加载 teach-data.js） ---------- */
-const TEACH_CORPUS_PAGE_SIZE = 30;
-const TEACH_CORPUS_VIEW = { page: 0, kw: '' };
-let teachCorpusLoading = false;
-function ensureTeachCorpus(){
-    if(window.TEACH_CORPUS || teachCorpusLoading) return;
-    teachCorpusLoading = true;
+/* ---------- 场景练习（按需加载 practice-data.js） ---------- */
+const TP_ROUND = 10;
+const TP_STATE = { scene: 'greet', mode: 'cn2xl', queue: [], qi: 0, right: 0, answered: false, loading: false };
+function ensurePracticeBank(){
+    if(window.PRACTICE_BANK || TP_STATE.loading) return;
+    TP_STATE.loading = true;
     const s = document.createElement('script');
-    s.src = 'teach-data.js';
-    s.onload = function(){ teachCorpusLoading = false; renderTeachCorpus(); };
-    s.onerror = function(){ teachCorpusLoading = false; renderTeachCorpus(); };
+    s.src = 'practice-data.js';
+    s.onload = function(){ TP_STATE.loading = false; renderPractice(); };
+    s.onerror = function(){ TP_STATE.loading = false; renderPractice(); };
     document.head.appendChild(s);
 }
-function teachCorpusList(){
-    const lesson = TEACH_LESSONS[TEACH_STATE.idx];
-    return (window.TEACH_CORPUS && window.TEACH_CORPUS[lesson.id]) || [];
+function tpBank(){
+    if(!window.PRACTICE_BANK) return null;
+    return window.PRACTICE_BANK[TP_STATE.scene] || window.PRACTICE_BANK[Object.keys(window.PRACTICE_BANK)[0]];
 }
-function corpusXl(cn, py){
-    const chars = Array.from(cn);
-    const syls = String(py).trim().split(/\s+/);
-    return chars.map((ch, i) => {
-        if(XINGLIAN_CHAR_EXCEPTIONS[ch]) return XINGLIAN_CHAR_EXCEPTIONS[ch];
-        const s = syls[i];
-        if(!s) return '';
-        return simplifyXinglianText(strictForwardConvert(s, false));
-    }).join(' ');
+function tpShuffle(a){
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}
+    return a;
 }
-function renderTeachCorpus(){
-    const body = document.getElementById('teachCorpusBody');
-    if(!body) return;
-    const countEl = document.getElementById('teachCorpusCount');
-    const pageEl = document.getElementById('teachCorpusPage');
-    const prev = document.getElementById('teachCorpusPrev');
-    const next = document.getElementById('teachCorpusNext');
-    if(!window.TEACH_CORPUS){
-        if(countEl) countEl.textContent = teachCorpusLoading ? '词表加载中…' : '词表未加载';
-        body.innerHTML = '<tr><td colspan="3" class="teach-corpus-empty">正在加载扩展词表，请稍候…</td></tr>';
-        if(pageEl) pageEl.textContent = '';
-        if(prev) prev.disabled = true;
-        if(next) next.disabled = true;
+function tpNewRound(){
+    const b = tpBank();
+    if(!b) return;
+    const pool = b.w;
+    const prefer = pool.slice(0, Math.min(240, pool.length));
+    const rest = pool.slice(prefer.length);
+    const picked = tpShuffle(prefer.slice()).slice(0, Math.min(TP_ROUND, prefer.length));
+    if(picked.length < TP_ROUND && rest.length){
+        picked.push.apply(picked, tpShuffle(rest.slice()).slice(0, TP_ROUND - picked.length));
+    }
+    TP_STATE.queue = picked;
+    TP_STATE.qi = 0;
+    TP_STATE.right = 0;
+    TP_STATE.answered = false;
+}
+function tpCurrent(){ return TP_STATE.queue[TP_STATE.qi] || null; }
+function tpPrompt(word){ return TP_STATE.mode === 'cn2xl' ? word : toXinglian(word); }
+function tpAnswer(word){ return TP_STATE.mode === 'cn2xl' ? toXinglian(word) : word; }
+function tpNormalize(v, isXl){
+    const s = String(v || '').toLowerCase().replace(/\s+/g, '');
+    return isXl ? teachNormalizeXl(s).replace(/\s+/g, '') : s;
+}
+function tpIsRight(input, word){
+    if(TP_STATE.mode === 'cn2xl') return tpNormalize(input, true) === tpNormalize(tpAnswer(word), true);
+    return tpNormalize(input, false) === tpNormalize(word, false);
+}
+function renderPractice(){
+    const wrap = document.getElementById('tpPractice');
+    if(!wrap) return;
+    if(!window.PRACTICE_BANK){
+        wrap.innerHTML = `<div class="tp-head"><h3>场景练习</h3><span class="tp-score" id="tpScore">题库加载中…</span></div>
+            <p class="tp-desc">正在加载常用词题库，请稍候…</p>`;
+        ensurePracticeBank();
         return;
     }
-    const all = teachCorpusList();
-    const kw = TEACH_CORPUS_VIEW.kw.trim().toLowerCase();
-    const list = kw ? all.filter(s => s.toLowerCase().indexOf(kw) !== -1) : all;
-    const pages = Math.max(1, Math.ceil(list.length / TEACH_CORPUS_PAGE_SIZE));
-    const page = Math.max(0, Math.min(TEACH_CORPUS_VIEW.page, pages - 1));
-    TEACH_CORPUS_VIEW.page = page;
-    const slice = list.slice(page * TEACH_CORPUS_PAGE_SIZE, (page + 1) * TEACH_CORPUS_PAGE_SIZE);
-    if(countEl){
-        countEl.textContent = kw
-            ? `筛选出 ${list.length} 条 / 共 ${all.length} 条`
-            : `共 ${all.length} 条`;
+    const bank = window.PRACTICE_BANK;
+    if(!bank[TP_STATE.scene]) TP_STATE.scene = Object.keys(bank)[0];
+    const scene = bank[TP_STATE.scene];
+    const chips = Object.keys(bank).map(k =>
+        `<button class="tp-chip ${k === TP_STATE.scene ? 'active' : ''}" data-scene="${k}" type="button">${bank[k].n}<em>${bank[k].w.length}</em></button>`
+    ).join('');
+    const modes = [['cn2xl', '中 → 星联'], ['xl2cn', '星联 → 中']].map(([k, t]) =>
+        `<button class="tp-mode ${TP_STATE.mode === k ? 'active' : ''}" data-mode="${k}" type="button">${t}</button>`
+    ).join('');
+    if(!TP_STATE.queue.length) tpNewRound();
+    const word = tpCurrent();
+    let card;
+    if(!word){
+        card = `<div class="tp-done"><strong>本轮完成</strong><span>答对 ${TP_STATE.right} / ${TP_STATE.queue.length} 题</span>
+            <button class="chip-btn primary" id="tpAgain" type="button">再来一轮</button></div>`;
+    }else{
+        const hint = TP_STATE.mode === 'cn2xl' ? `<div class="tp-hint">拼音：${toNumericPinyin(word)}</div>` : '';
+        card = `<div class="tp-meta">第 ${TP_STATE.qi + 1} / ${TP_STATE.queue.length} 题 · 答对 ${TP_STATE.right}</div>
+            <div class="tp-word">${tpPrompt(word)}</div>
+            ${hint}
+            <div class="tp-row">
+                <input type="text" class="tp-input" id="tpInput" autocomplete="off" placeholder="${TP_STATE.mode === 'cn2xl' ? '输入星联语（可含撇号）' : '输入对应的中文'}">
+                <button class="chip-btn primary" id="tpCheck" type="button">检查</button>
+            </div>
+            <div class="tp-fb" id="tpFb"></div>
+            <div class="tp-actions">
+                <button class="chip-btn" id="tpSkip" type="button">看答案</button>
+                <button class="chip-btn" id="tpNext" type="button">下一题</button>
+            </div>`;
     }
-    body.innerHTML = slice.length
-        ? slice.map(s => {
-            const i = s.indexOf('|');
-            const cn = s.slice(0, i), py = s.slice(i + 1);
-            return `<tr><td>${cn}</td><td class="teach-corpus-py">${py.split(/\s+/).map(x => x.replace(/[05]$/, '')).join(' ')}</td><td class="teach-corpus-xl">${corpusXl(cn, py)}</td></tr>`;
-        }).join('')
-        : '<tr><td colspan="3" class="teach-corpus-empty">没有匹配的词条，换个关键词试试</td></tr>';
-    if(pageEl) pageEl.textContent = `第 ${page + 1} / ${pages} 页`;
-    if(prev) prev.disabled = page <= 0;
-    if(next) next.disabled = page >= pages - 1;
+    wrap.innerHTML = `<div class="tp-head"><h3>场景练习</h3><span class="tp-score" id="tpScore">${scene.n} · ${scene.w.length} 个常用词</span></div>
+        <p class="tp-desc">选择场合开始训练，每轮 10 题；答错会给出正确写法，可随时切换出题方向。</p>
+        <div class="tp-scenes">${chips}</div>
+        <div class="tp-modes">${modes}</div>
+        <div class="tp-card">${card}</div>`;
+    const input = document.getElementById('tpInput');
+    if(input) setTimeout(function(){ input.focus(); }, 30);
 }
+function tpCheckAnswer(){
+    const word = tpCurrent();
+    if(!word || TP_STATE.answered) return;
+    const input = document.getElementById('tpInput');
+    const fb = document.getElementById('tpFb');
+    const ok = tpIsRight(input && input.value, word);
+    TP_STATE.answered = true;
+    if(ok) TP_STATE.right++;
+    if(fb){
+        fb.className = 'tp-fb ' + (ok ? 'ok' : 'bad');
+        fb.textContent = ok ? '✓ 正确' : `✗ 正确答案：${tpAnswer(word)}`;
+    }
+    const meta = document.querySelector('.tp-meta');
+    if(meta) meta.textContent = `第 ${TP_STATE.qi + 1} / ${TP_STATE.queue.length} 题 · 答对 ${TP_STATE.right}`;
+    if(input) input.disabled = true;
+}
+function tpNext(){
+    if(TP_STATE.qi < TP_STATE.queue.length) TP_STATE.qi++;
+    TP_STATE.answered = false;
+    renderPractice();
+}
+
 function renderTeachNav(){
     const nav = document.getElementById('teachNav');
     if(!nav) return;
@@ -3908,8 +3958,6 @@ function renderTeachLesson(){
     if(!main) return;
     const idx = Math.max(0, Math.min(TEACH_STATE.idx, TEACH_LESSONS.length - 1));
     TEACH_STATE.idx = idx;
-    TEACH_CORPUS_VIEW.page = 0;
-    TEACH_CORPUS_VIEW.kw = '';
     const lesson = TEACH_LESSONS[idx];
     const quizHtml = lesson.quiz.map((q, qi) => {
         const cn = q[0];
@@ -3931,32 +3979,13 @@ function renderTeachLesson(){
         </div>
         <div class="teach-body">${lesson.body()}</div>
         <div class="teach-quiz"><h3>随堂练习</h3>${quizHtml}</div>
-        <div class="teach-corpus">
-            <div class="teach-corpus-head">
-                <h3>扩展词表</h3>
-                <span class="teach-corpus-count" id="teachCorpusCount"></span>
-            </div>
-            <p class="teach-corpus-desc">下面的词条都符合本课规则。轻声字不写声调数字，可以搜索汉字或拼音，逐页浏览。</p>
-            <input type="text" class="teach-corpus-search" id="teachCorpusSearch" placeholder="搜索汉字或拼音，例如：的 / de / zhong">
-            <div class="teach-table-wrap">
-                <table class="teach-table teach-corpus-table">
-                    <thead><tr><th>中文</th><th>拼音</th><th>星联语</th></tr></thead>
-                    <tbody id="teachCorpusBody"></tbody>
-                </table>
-            </div>
-            <div class="teach-pager">
-                <button class="chip-btn" id="teachCorpusPrev" type="button">上一页</button>
-                <span id="teachCorpusPage"></span>
-                <button class="chip-btn" id="teachCorpusNext" type="button">下一页</button>
-            </div>
-        </div>
+        <div class="teach-practice" id="tpPractice"></div>
         <div class="teach-actions">
             <button class="chip-btn" id="teachPrev" type="button" ${idx === 0 ? 'disabled' : ''}>上一课</button>
             <button class="chip-btn primary" id="teachNext" type="button" ${idx === TEACH_LESSONS.length - 1 ? 'disabled' : ''}>下一课</button>
         </div>`;
     updateTeachProgress();
-    if(window.TEACH_CORPUS) renderTeachCorpus();
-    else if(document.getElementById('train').classList.contains('active')) ensureTeachCorpus();
+    renderPractice();
 }
 function updateTeachProgress(){
     const bar = document.getElementById('teachProgressBar');
@@ -4011,25 +4040,46 @@ document.addEventListener('click', function(e){
         if(ok) teachMarkDoneIfAll();
         return;
     }
-    if(t.closest('#teachCorpusPrev')){
-        TEACH_CORPUS_VIEW.page = Math.max(0, TEACH_CORPUS_VIEW.page - 1);
-        renderTeachCorpus();
+    const tpScene = t.closest('.tp-chip');
+    if(tpScene){
+        if(tpScene.dataset.scene !== TP_STATE.scene){
+            TP_STATE.scene = tpScene.dataset.scene;
+            TP_STATE.queue = [];
+            renderPractice();
+        }
         return;
     }
-    if(t.closest('#teachCorpusNext')){
-        TEACH_CORPUS_VIEW.page += 1;
-        renderTeachCorpus();
+    const tpMode = t.closest('.tp-mode');
+    if(tpMode){
+        if(tpMode.dataset.mode !== TP_STATE.mode){
+            TP_STATE.mode = tpMode.dataset.mode;
+            TP_STATE.queue = [];
+            renderPractice();
+        }
         return;
     }
-});
-document.addEventListener('input', function(e){
-    if(e.target && e.target.id === 'teachCorpusSearch'){
-        TEACH_CORPUS_VIEW.kw = e.target.value;
-        TEACH_CORPUS_VIEW.page = 0;
-        renderTeachCorpus();
+    if(t.closest('#tpCheck')){ tpCheckAnswer(); return; }
+    if(t.closest('#tpNext')){ tpNext(); return; }
+    if(t.closest('#tpSkip')){
+        const word = tpCurrent();
+        const fb = document.getElementById('tpFb');
+        if(word && fb && !TP_STATE.answered){
+            TP_STATE.answered = true;
+            fb.className = 'tp-fb bad';
+            fb.textContent = `正确答案：${tpAnswer(word)}`;
+            const input = document.getElementById('tpInput');
+            if(input) input.disabled = true;
+        }
+        return;
     }
+    if(t.closest('#tpAgain')){ TP_STATE.queue = []; renderPractice(); return; }
 });
 document.addEventListener('keydown', function(e){
+    if(e.target && e.target.id === 'tpInput' && e.key === 'Enter'){
+        e.preventDefault();
+        tpCheckAnswer();
+        return;
+    }
     if(e.target && e.target.classList && e.target.classList.contains('teach-input') && e.key === 'Enter'){
         e.preventDefault();
         const qi = e.target.dataset.qi;
