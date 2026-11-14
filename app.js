@@ -2713,104 +2713,6 @@ function initTheme(){
         document.body.classList.add('light');
     }
 }
-// ============ 语料库 ============
-const CORPUS_STATE={mode:'words',cat:'',kw:'',page:1,pageSize:50};
-function corpusData(){return window.CORPUS_DATA||{words:{},sentences:[],meta:{}};}
-function renderCorpusCats(){
-    const d=corpusData();
-    const el=document.getElementById('corpusCats');
-    if(!el) return;
-    if(CORPUS_STATE.mode==='words'){
-        const cats=Object.keys(d.words||{}).sort();
-        el.innerHTML='<button class="corpus-cat '+(!CORPUS_STATE.cat?'active':'')+'" data-cat="">全部</button>'+
-            cats.map(c=>`<button class="corpus-cat ${CORPUS_STATE.cat===c?'active':''}" data-cat="${c}">${c} (${(d.words[c]||[]).length})</button>`).join('');
-    }else{
-        const tags=['全部','成语','谚语'];
-        el.innerHTML=tags.map((t,i)=>{
-            const v=i===0?'':(i===1?'idiom':'proverb');
-            return `<button class="corpus-cat ${CORPUS_STATE.cat===v?'active':''}" data-cat="${v}">${t}</button>`;
-        }).join('');
-    }
-    document.querySelectorAll('#corpusCats .corpus-cat').forEach(b=>{
-        b.addEventListener('click',()=>{CORPUS_STATE.cat=b.dataset.cat;CORPUS_STATE.page=1;renderCorpusList();renderCorpusCats();});
-    });
-}
-function getFilteredCorpus(){
-    const d=corpusData();
-    const kw=CORPUS_STATE.kw.trim().toLowerCase();
-    let list=[];
-    if(CORPUS_STATE.mode==='words'){
-        const cats=CORPUS_STATE.cat?[CORPUS_STATE.cat]:Object.keys(d.words||{});
-        for(const c of cats){
-            for(const item of (d.words[c]||[])){
-                const [cn,py,xl]=Array.isArray(item)?item:[item.c,item.p,item.x];
-                if(!kw||cn.includes(kw)||(py||'').toLowerCase().includes(kw)||(xl||'').toLowerCase().includes(kw)){
-                    list.push({c:cn,p:py,x:xl});
-                }
-            }
-        }
-    }else{
-        for(const s of (d.sentences||[])){
-            if(CORPUS_STATE.cat && s.t!==CORPUS_STATE.cat) continue;
-            if(!kw||s.c.includes(kw)||(s.p||'').toLowerCase().includes(kw)||(s.x||'').toLowerCase().includes(kw)){
-                list.push(s);
-            }
-        }
-    }
-    return list;
-}
-function renderCorpusList(){
-    const el=document.getElementById('corpusList');
-    if(!el) return;
-    const list=getFilteredCorpus();
-    const total=list.length;
-    const ps=CORPUS_STATE.pageSize;
-    const totalPages=Math.max(1,Math.ceil(total/ps));
-    if(CORPUS_STATE.page>totalPages)CORPUS_STATE.page=totalPages;
-    const start=(CORPUS_STATE.page-1)*ps;
-    const page=list.slice(start,start+ps);
-    if(!page.length){el.innerHTML='<div class="word-empty" style="padding:24px;text-align:center">没有匹配的内容</div>';}
-    else{
-        el.innerHTML=page.map(it=>{
-            const tag=it.t==='idiom'?'成语':(it.t==='proverb'?'谚语':'');
-            return `<div class="corpus-item" data-cn="${(it.c||'').replace(/"/g,'&quot;')}">
-                <span class="corpus-cn">${it.c||''}</span>
-                <span class="corpus-py">${it.p||''}</span>
-                <span class="corpus-xl">${it.x||''}</span>
-                ${tag?`<span class="corpus-tag">${tag}</span>`:''}
-            </div>`;
-        }).join('');
-    }
-    renderCorpusPager(total,totalPages);
-    // update counts
-    const wEl=document.getElementById('corpusWordCount');
-    const sEl=document.getElementById('corpusSentCount');
-    const d=corpusData();
-    if(wEl)wEl.textContent=(d.meta?.words||0).toLocaleString();
-    if(sEl)sEl.textContent=(d.sentences?.length||0).toLocaleString();
-}
-function renderCorpusPager(total,totalPages){
-    const el=document.getElementById('corpusPager');
-    if(!el) return;
-    el.innerHTML=`<button id="corpusPrev" ${CORPUS_STATE.page<=1?'disabled':''}>上一页</button>
-        <span>第 ${CORPUS_STATE.page} / ${totalPages} 页（共 ${total.toLocaleString()} 条）</span>
-        <button id="corpusNext" ${CORPUS_STATE.page>=totalPages?'disabled':''}>下一页</button>`;
-    const p=document.getElementById('corpusPrev');
-    const n=document.getElementById('corpusNext');
-    if(p)p.onclick=()=>{if(CORPUS_STATE.page>1){CORPUS_STATE.page--;renderCorpusList();}};
-    if(n)n.onclick=()=>{if(CORPUS_STATE.page<totalPages){CORPUS_STATE.page++;renderCorpusList();}};
-}
-function renderCorpus(){
-    const d=corpusData();
-    const st=document.getElementById('corpusStats');
-    if(st)st.textContent=`共 ${(d.meta?.words||0).toLocaleString()} 词汇 · ${(d.sentences?.length||0).toLocaleString()} 例句，中文 · 拼音 · 星联文对照`;
-    document.querySelectorAll('.corpus-tab').forEach(t=>{
-        t.classList.toggle('active',t.dataset.corpu===CORPUS_STATE.mode);
-    });
-    CORPUS_STATE.cat='';CORPUS_STATE.page=1;
-    renderCorpusCats();
-    renderCorpusList();
-}
 window.addEventListener('DOMContentLoaded',()=>{
     buildPinyinChineseMap();
     buildForwardDict();
@@ -2820,32 +2722,6 @@ window.addEventListener('DOMContentLoaded',()=>{
     restoreAutoSaveData();
     initSettings();
     
-    // 语料库事件
-    document.querySelectorAll('.corpus-tab').forEach(t=>{
-        t.addEventListener('click',()=>{
-            CORPUS_STATE.mode=t.dataset.corpu;
-            CORPUS_STATE.cat='';CORPUS_STATE.page=1;
-            renderCorpus();
-        });
-    });
-    document.getElementById('corpusSearchBtn')?.addEventListener('click',()=>{
-        CORPUS_STATE.kw=document.getElementById('corpusSearch').value;
-        CORPUS_STATE.page=1;renderCorpusList();
-    });
-    document.getElementById('corpusSearch')?.addEventListener('keydown',e=>{
-        if(e.key==='Enter'){document.getElementById('corpusSearchBtn').click();}
-    });
-    document.addEventListener('click',e=>{
-        const item=e.target.closest('.corpus-item');
-        if(item){
-            const cn=item.querySelector('.corpus-cn')?.textContent||'';
-            const py=item.querySelector('.corpus-py')?.textContent||'';
-            const xl=item.querySelector('.corpus-xl')?.textContent||'';
-            const text=GLOBAL_STATE.copyMode==='xl'?xl:(GLOBAL_STATE.copyMode==='py'?py:cn);
-            navigator.clipboard?.writeText(text).catch(()=>{});
-        }
-    });
-
     // 多音字点击事件监听（事件委托）
     document.addEventListener('click', function(e){
         // 点击星联文→中文方向的多音字高亮字
@@ -2925,7 +2801,6 @@ if(target.closest('.nav-item')){
             if(sec) sec.classList.add('active');
             if(id==='dict'){renderPyNav();renderPyContent();renderPyTable();updateDictStats();}
             if(id==='combo'){renderComboNav();renderComboContent();renderComboTable();}
-            if(id==='corpus'){renderCorpus();}
             if(id==='train'){renderTeachNav();renderTeachLesson();}
             if(id==='practice'){
                 if(window.PRACTICE_BANK) renderPractice();
@@ -4377,3 +4252,548 @@ document.addEventListener('click',function(e){
         return;
     }
 });
+
+/* ================== 新功能模块 v3 ================== */
+const FEAT_KEY='xl_feat_v1';
+const FEAT_DATA={created:Date.now(),days:{},actions:{},words:[],flash:{},ach:[]};
+
+function featLoad(){
+    try{
+        const raw=localStorage.getItem(FEAT_KEY);
+        if(raw){const d=JSON.parse(raw);Object.assign(FEAT_DATA,d);}
+    }catch(e){}
+    FEAT_DATA.words=FEAT_DATA.words||[];
+    FEAT_DATA.actions=FEAT_DATA.actions||{};
+    FEAT_DATA.days=FEAT_DATA.days||{};
+    FEAT_DATA.flash=FEAT_DATA.flash||{};
+    FEAT_DATA.ach=FEAT_DATA.ach||[];
+}
+function featSave(){try{localStorage.setItem(FEAT_KEY,JSON.stringify(FEAT_DATA));}catch(e){}}
+function featToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function featMark(type){
+    const t=featToday();
+    FEAT_DATA.days[t]=(FEAT_DATA.days[t]||0)+1;
+    FEAT_DATA.actions[type]=(FEAT_DATA.actions[type]||0)+1;
+    featSave();
+}
+function featStreak(){
+    let n=0;const d=new Date();
+    for(;;){
+        const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        if(FEAT_DATA.days[key]){n++;d.setDate(d.getDate()-1);}else break;
+    }
+    return n;
+}
+function featTotalActions(){return Object.values(FEAT_DATA.actions).reduce((a,b)=>a+b,0);}
+function featNorm(s){return String(s||'').toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]/g,'');}
+function featPickWord(minLen=2,maxLen=3){
+    const keys=Object.keys(CHINESE_PINYIN_MAP).filter(k=>k.length>=minLen&&k.length<=maxLen&&/^[\u4e00-\u9fa5]+$/.test(k));
+    return keys[Math.floor(Math.random()*keys.length)];
+}
+function featEl(id){return document.getElementById(id);}
+function featEscape(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* ---------- 学习面板 ---------- */
+function renderDashboard(){
+    const grid=featEl('dashGrid');if(!grid)return;
+    const today=FEAT_DATA.days[featToday()]||0;
+    const favs=(()=>{try{return (JSON.parse(localStorage.getItem('xl_favorites_v1')||'[]')).length;}catch(e){return 0;}})();
+    const hist=(()=>{try{return (JSON.parse(localStorage.getItem('xl_translate_history_v1')||'[]')).length;}catch(e){return 0;}})();
+    const cards=[
+        ['今日学习',today,'次'],
+        ['连续打卡',featStreak(),'天'],
+        ['累计操作',featTotalActions(),'次'],
+        ['生词本',FEAT_DATA.words.length,'词'],
+        ['收藏',favs,'条'],
+        ['翻译历史',hist,'条']
+    ];
+    grid.innerHTML=cards.map(([k,v,u])=>`<div class="dash-card"><div class="dash-val">${v}<span>${u}</span></div><div class="dash-key">${k}</div></div>`).join('');
+    const tips=featEl('dashTips');
+    if(tips){
+        const tip=featStreak()>=3?'保持得不错，继续保持连续打卡！':(today?'今天已学习，试试闪卡或听写巩固一下。':'今天还没学习，去教学课程或闪卡记几个词吧。');
+        tips.textContent=tip;
+    }
+    drawDashChart();
+}
+function drawDashChart(){
+    const cv=featEl('dashCanvas');if(!cv||!cv.getContext)return;
+    const ctx=cv.getContext('2d');if(!ctx)return;
+    const W=cv.width,H=cv.height,pad=28,bw=(W-pad*2)/7*0.6;
+    ctx.clearRect(0,0,W,H);
+    const days=[];const d=new Date();
+    for(let i=6;i>=0;i--){const t=new Date(d);t.setDate(d.getDate()-i);days.push(t);}
+    const vals=days.map(t=>{const k=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;return FEAT_DATA.days[k]||0;});
+    const max=Math.max(1,...vals);
+    let css='#818cf8';
+    try{css=getComputedStyle(document.documentElement).getPropertyValue('--pri').trim()||css;}catch(e){}
+    days.forEach((t,i)=>{
+        const h=(H-pad*2)*(vals[i]/max);
+        const x=pad+i*((W-pad*2)/7)+((W-pad*2)/7-bw)/2;
+        const y=H-pad-h;
+        ctx.fillStyle=css;
+        ctx.globalAlpha=vals[i]?0.9:0.25;
+        ctx.fillRect(x,y,bw,h||2);
+        ctx.globalAlpha=1;
+        ctx.fillStyle='rgba(160,170,210,.9)';
+        ctx.font='12px sans-serif';
+        ctx.textAlign='center';
+        ctx.fillText(`${t.getMonth()+1}/${t.getDate()}`,x+bw/2,H-8);
+        if(vals[i])ctx.fillText(vals[i],x+bw/2,y-6);
+    });
+}
+
+/* ---------- 闪卡记忆 ---------- */
+const FC={cur:null,flipped:false,pool:[]};
+function fcNext(){
+    if(!FC.pool.length){
+        const seen=FEAT_DATA.flash;
+        const due=Object.keys(seen).filter(k=>seen[k].due&&seen[k].due<=Date.now());
+        FC.pool=due.length?due.slice(0,50):[];
+        if(!FC.pool.length){
+            const set=new Set();
+            while(set.size<40)set.add(featPickWord(2,3));
+            FC.pool=[...set];
+        }
+    }
+    const cn=FC.pool.shift();
+    if(!cn){FC.cur=null;return;}
+    FC.cur={cn,py:toNumericPinyin(cn),xl:toXinglian(cn)};
+    FC.flipped=false;
+    featEl('fcFront').textContent=FC.cur.xl;
+    featEl('fcBack').textContent='';
+    featMark('flash');
+    fcStats();
+}
+function fcFlip(){
+    if(!FC.cur)return;
+    FC.flipped=true;
+    featEl('fcBack').textContent=`${FC.cur.cn} · ${FC.cur.py}`;
+}
+function fcRate(known){
+    if(!FC.cur)return;
+    const rec=FEAT_DATA.flash[FC.cur.cn]||{box:0};
+    rec.box=known?Math.min(5,rec.box+1):0;
+    rec.due=Date.now()+(known?[0,1,2,4,7,15][rec.box]:0)*86400000;
+    FEAT_DATA.flash[FC.cur.cn]=rec;
+    featSave();
+    fcNext();
+}
+function fcStats(){
+    const el=featEl('fcStats');if(!el)return;
+    const total=Object.keys(FEAT_DATA.flash).length;
+    const learned=Object.values(FEAT_DATA.flash).filter(r=>r.box>=3).length;
+    el.innerHTML=[[ '已复习',total,'词'],['已掌握',learned,'词'],['剩余队列',FC.pool.length,'张']]
+        .map(([k,v,u])=>`<div class="dash-card"><div class="dash-val">${v}<span>${u}</span></div><div class="dash-key">${k}</div></div>`).join('');
+}
+
+/* ---------- 生词本 ---------- */
+function wbRender(){
+    const el=featEl('wbList');if(!el)return;
+    if(!FEAT_DATA.words.length){el.innerHTML='<div class="word-empty">生词本还是空的，输入中文或星联文添加</div>';return;}
+    el.innerHTML=FEAT_DATA.words.map((w,i)=>`<div class="wb-item"><div class="wb-main"><span class="wb-cn">${featEscape(w.cn)}</span><span class="wb-py">${featEscape(w.py)}</span><span class="wb-xl">${featEscape(w.xl)}</span></div><button class="wb-del" data-i="${i}" type="button">删除</button></div>`).join('');
+    el.querySelectorAll('.wb-del').forEach(b=>b.addEventListener('click',()=>{
+        FEAT_DATA.words.splice(+b.dataset.i,1);featSave();wbRender();
+    }));
+}
+function wbAdd(){
+    const inp=featEl('wbInput');if(!inp)return;
+    const v=inp.value.trim();if(!v)return;
+    let cn,py,xl;
+    if(/[\u4e00-\u9fa5]/.test(v)){cn=v;py=toNumericPinyin(v);xl=toXinglian(v);}
+    else{
+        xl=v;
+        const words=v.split(/\s+/).filter(Boolean);
+        cn=words.map(w=>{const p=strictReverseConvert(w,false).bestGuess||'';return pinyinSentenceToChineseDetailed(p).text||w;}).join('');
+        py=toNumericPinyin(cn);
+    }
+    if(FEAT_DATA.words.some(w=>w.cn===cn)){inp.value='';return;}
+    FEAT_DATA.words.unshift({cn,py,xl,added:Date.now()});
+    featSave();inp.value='';wbRender();featMark('wordbook');
+}
+function wbQuiz(){
+    const box=featEl('wbQuizBox');if(!box||!FEAT_DATA.words.length){if(box)box.innerHTML='<div class="word-empty">先添加一些生词再复习</div>';return;}
+    const w=FEAT_DATA.words[Math.floor(Math.random()*FEAT_DATA.words.length)];
+    box.innerHTML=`<div class="wb-q">请回忆「${featEscape(w.cn)}」的星联文写法</div>
+        <button class="chip-btn" id="wbReveal" type="button">显示答案</button>
+        <div class="wb-a" id="wbAnswer"></div>`;
+    featEl('wbReveal').addEventListener('click',()=>{
+        featEl('wbAnswer').textContent=`${w.py} → ${w.xl}`;
+        featMark('wordbook');
+    });
+}
+
+/* ---------- 听写训练 ---------- */
+const LISTEN={cur:null,done:0,ok:0};
+function listenNext(){
+    const cn=featPickWord(2,3);
+    LISTEN.cur={cn,py:toNumericPinyin(cn),xl:toXinglian(cn)};
+    featEl('listenHint').textContent='已就绪，点击「播放发音」';
+    featEl('listenInput').value='';
+    featEl('listenFb').textContent='';
+    listenStats();
+}
+function listenSpeak(){
+    if(!LISTEN.cur)listenNext();
+    const cn=LISTEN.cur.cn;
+    featEl('listenHint').textContent='正在播放…请仔细听';
+    try{
+        if('speechSynthesis' in window){
+            window.speechSynthesis.cancel();
+            const u=new SpeechSynthesisUtterance(cn);
+            u.lang='zh-CN';u.rate=0.9;
+            window.speechSynthesis.speak(u);
+        }
+    }catch(e){}
+}
+function listenCheck(){
+    if(!LISTEN.cur)return;
+    const val=featEl('listenInput').value;
+    const ok=featNorm(val)===featNorm(LISTEN.cur.xl);
+    LISTEN.done++;if(ok)LISTEN.ok++;
+    featEl('listenFb').textContent=ok?'正确！':`答案：${LISTEN.cur.xl}（${LISTEN.cur.cn}）`;
+    featEl('listenFb').className='listen-fb '+(ok?'ok':'bad');
+    if(ok)featMark('listen');
+    listenStats();
+}
+function listenStats(){
+    const el=featEl('listenStats');if(!el)return;
+    const rate=LISTEN.done?Math.round(LISTEN.ok/LISTEN.done*100):0;
+    el.innerHTML=[['已完成',LISTEN.done,'题'],['正确',LISTEN.ok,'题'],['正确率',rate,'%']]
+        .map(([k,v,u])=>`<div class="dash-card"><div class="dash-val">${v}<span>${u}</span></div><div class="dash-key">${k}</div></div>`).join('');
+}
+
+/* ---------- 打字练习 ---------- */
+const TYPING={cur:null,done:0,ok:0,start:0};
+function typingNext(){
+    const cn=featPickWord(2,4);
+    TYPING.cur={cn,xl:toXinglian(cn)};
+    TYPING.start=Date.now();
+    featEl('typingPrompt').textContent=cn;
+    featEl('typingInput').value='';
+    featEl('typingFb').textContent='';
+    typingStats();
+}
+function typingCheck(){
+    if(!TYPING.cur)return;
+    const val=featEl('typingInput').value;
+    const ok=featNorm(val)===featNorm(TYPING.cur.xl);
+    const secs=Math.max(1,(Date.now()-TYPING.start)/1000);
+    TYPING.done++;if(ok)TYPING.ok++;
+    const wpm=Math.round((TYPING.ok/ TYPING.done) * (60/Math.max(1,secs)) * TYPING.cur.xl.length);
+    featEl('typingFb').textContent=ok?`正确！用时 ${secs.toFixed(1)} 秒`:`答案：${TYPING.cur.xl}`;
+    featEl('typingFb').className='typing-fb '+(ok?'ok':'bad');
+    if(ok){featMark('typing');window.__typingWpm=wpm;}
+    typingStats();
+    typingNext();
+}
+function typingStats(){
+    const el=featEl('typingStats');if(!el)return;
+    const rate=TYPING.done?Math.round(TYPING.ok/TYPING.done*100):0;
+    el.innerHTML=[['已完成',TYPING.done,'题'],['正确',TYPING.ok,'题'],['正确率',rate,'%'],['上次速度',window.__typingWpm||0,'字/分']]
+        .map(([k,v,u])=>`<div class="dash-card"><div class="dash-val">${v}<span>${u}</span></div><div class="dash-key">${k}</div></div>`).join('');
+}
+
+/* ---------- 句子解析 ---------- */
+function analyzeSentence(){
+    const inp=featEl('analyzeInput');const out=featEl('analyzeResult');
+    if(!inp||!out)return;
+    const v=inp.value.trim();
+    if(!v){out.innerHTML='<div class="word-empty">请输入内容</div>';return;}
+    const xlMode=isXinglianText(v);
+    let rows=[];
+    if(xlMode){
+        const words=expandSimplifiedXinglian(v).split(/\s+/).filter(Boolean);
+        words.forEach(w=>{
+            const py=strictReverseConvert(w,false).bestGuess||'';
+            const cn=pinyinSentenceToChineseDetailed(py).text||'';
+            rows.push({xl:w,py,cn});
+        });
+    }else{
+        chineseSentenceToPinyin(v).forEach(p=>{
+            if(!p.translatable){rows.push({cn:p.original,py:'—',xl:'—'});return;}
+            const xl=simplifyXinglianText(strictForwardConvert(p.pinyin,false));
+            rows.push({cn:p.original,py:displayPinyinOk(p.pinyin),xl});
+        });
+    }
+    out.innerHTML=`<div class="an-list">${rows.map(r=>`<div class="an-item"><div class="an-cn">${featEscape(r.cn||'·')}</div><div class="an-py">${featEscape(r.py)}</div><div class="an-xl">${featEscape(r.xl)}</div></div>`).join('')}</div>`;
+}
+function displayPinyinOk(py){try{return numDisplay(py);}catch(e){return py;}}
+
+/* ---------- 数字与日期 ---------- */
+const NUM_MODE={mode:'cn2num'};
+const CN_DIG={'零':0,'〇':0,'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
+const CN_UNIT={'十':10,'百':100,'千':1000};
+function cnToNumber(str){
+    const s=String(str).replace(/[^\u4e00-\u9fa5]/g,'');
+    if(!s)return NaN;
+    let total=0,section=0,num=0;
+    for(const ch of s){
+        if(ch in CN_DIG){num=CN_DIG[ch];continue;}
+        if(ch==='亿'){total=(total+section+num)*1e8;section=0;num=0;continue;}
+        if(ch==='万'){total+=(section+num)*1e4;section=0;num=0;continue;}
+        const u=CN_UNIT[ch];
+        if(!u)return NaN;
+        if(num===0)num=1;
+        section+=num*u;num=0;
+    }
+    return total+section+num;
+}
+const CN_D=['零','一','二','三','四','五','六','七','八','九'];
+function sec4(n){
+    let s='',zero=false;const ds=String(n).padStart(4,'0');
+    for(let i=0;i<4;i++){
+        const d=+ds[i];
+        if(d===0){if(s)zero=true;}
+        else{if(zero){s+='零';zero=false;}s+=CN_D[d]+['千','百','十',''][i];}
+    }
+    return s;
+}
+function numberToCn(n){
+    n=Math.floor(Math.abs(Number(n)));
+    if(!isFinite(n))return '—';
+    if(n===0)return '零';
+    let s='';
+    const yi=Math.floor(n/1e8),wan=Math.floor(n%1e8/1e4),ge=n%1e4;
+    if(yi){s+=sec4(yi)+'亿';if((wan||ge)&&wan<1000)s+='零';}
+    if(wan){s+=sec4(wan)+'万';if(ge&&ge<1000&&wan%10===0)s+='零';}
+    if(ge)s+=sec4(ge);
+    return s.replace(/^一十/,'十').replace(/零+/g,'零').replace(/零$/,'');
+}
+function dateToCn(str){
+    const m=String(str).trim().match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if(!m)return null;
+    const y=m[1].split('').map(d=>CN_D[+d]).join('');
+    const mo=numberToCn(+m[2]),da=numberToCn(+m[3]);
+    return `${y}年${mo}月${da}日`;
+}
+function runNumber(){
+    const inp=featEl('numInput');const out=featEl('numResult');
+    if(!inp||!out)return;
+    const v=inp.value.trim();
+    if(!v){out.innerHTML='<div class="word-empty">请输入内容</div>';return;}
+    let cnReading,digit;
+    if(NUM_MODE.mode==='date'){
+        const d=dateToCn(v);
+        if(!d){out.innerHTML='<div class="num-line bad">日期格式应为 2026-11-14</div>';return;}
+        cnReading=d;digit=v;
+    }else if(NUM_MODE.mode==='cn2num'){
+        const n=cnToNumber(v);
+        if(isNaN(n)){out.innerHTML='<div class="num-line bad">无法识别的中文数字</div>';return;}
+        digit=String(n);cnReading=v;
+    }else{
+        const n=parseInt(v.replace(/[^\d-]/g,''),10);
+        if(isNaN(n)){out.innerHTML='<div class="num-line bad">请输入阿拉伯数字</div>';return;}
+        digit=String(n);cnReading=numberToCn(n);
+    }
+    const py=toNumericPinyin(cnReading);
+    const xl=toXinglian(cnReading);
+    out.innerHTML=`
+        <div class="num-line"><span class="num-k">中文读法</span><span class="num-v">${featEscape(cnReading)}</span></div>
+        <div class="num-line"><span class="num-k">数字写法</span><span class="num-v">${featEscape(digit)}</span></div>
+        <div class="num-line"><span class="num-k">拼音</span><span class="num-v">${featEscape(py)}</span></div>
+        <div class="num-line"><span class="num-k">星联文</span><span class="num-v xl">${featEscape(xl)}</span></div>`;
+    featMark('numbers');
+}
+
+/* ---------- 姓名音译 ---------- */
+function runName(){
+    const inp=featEl('nameInput');const out=featEl('nameResult');
+    if(!inp||!out)return;
+    const v=inp.value.trim();
+    const cn=v.replace(/[^\u4e00-\u9fa5]/g,'');
+    if(!cn){out.innerHTML='<div class="word-empty">请输入中文姓名</div>';return;}
+    const chars=chineseSentenceToPinyin(cn).map(p=>{
+        const py=p.translatable?p.pinyin:p.original;
+        const xl=p.translatable?simplifyXinglianText(strictForwardConvert(p.pinyin,false)):p.original;
+        return {c:p.original,py:displayPinyinOk(py),xl};
+    });
+    const surname=chars.slice(0,1);
+    const given=chars.slice(1);
+    const fullPy=chars.map(x=>x.py).join(' ');
+    const fullXl=chars.map(x=>x.xl).join(' ');
+    out.innerHTML=`
+        <div class="name-row"><span class="num-k">姓氏</span><span class="num-v">${surname.map(x=>`${x.c} ${x.py} ${x.xl}`).join('')}</span></div>
+        <div class="name-row"><span class="num-k">名字</span><span class="num-v">${given.map(x=>`${x.c} ${x.py} ${x.xl}`).join(' · ')||'—'}</span></div>
+        <div class="name-row"><span class="num-k">完整拼音</span><span class="num-v">${featEscape(fullPy)}</span></div>
+        <div class="name-row"><span class="num-k">星联文</span><span class="num-v xl">${featEscape(fullXl)}</span></div>
+        <div class="name-row"><span class="num-k">英文式</span><span class="num-v">${featEscape(fullPy.replace(/\d/g,'').replace(/(^|\s)\S/g,s=>s.toUpperCase()))}</span></div>`;
+    featMark('names');
+}
+
+/* ---------- 文本工具 ---------- */
+function ttRun(){
+    const inp=featEl('ttInput');if(!inp)return;
+    const v=inp.value;
+    const cnCount=(v.match(/[\u4e00-\u9fa5]/g)||[]).length;
+    const py=toNumericPinyin(v);
+    const xl=toXinglian(v);
+    const stats=featEl('ttStats');
+    if(stats)stats.innerHTML=[['汉字',cnCount,'字'],['总字符',v.length,'个'],['行数',v.split('\n').length,'行'],['音节',py.split(/\s+/).filter(Boolean).length,'个']]
+        .map(([k,val,u])=>`<div class="dash-card"><div class="dash-val">${val}<span>${u}</span></div><div class="dash-key">${k}</div></div>`).join('');
+    const out=featEl('ttOutput');
+    if(out)out.innerHTML=`<div class="tt-block"><div class="tt-label">拼音</div><div class="tt-text">${featEscape(py)}</div></div>
+        <div class="tt-block"><div class="tt-label">星联文</div><div class="tt-text xl">${featEscape(xl)}</div></div>`;
+    window.__ttPy=py;window.__ttXl=xl;
+    featMark('texttools');
+}
+function ttCopy(which){
+    const t=which==='py'?window.__ttPy:window.__ttXl;
+    if(!t)return;
+    try{navigator.clipboard&&navigator.clipboard.writeText(t);}catch(e){}
+    const el=featEl('ttStats');
+    if(el)el.dataset.copied=which==='py'?'拼音已复制':'星联文已复制';
+}
+
+/* ---------- 成就 ---------- */
+const ACH_LIST=[
+    {id:'first',name:'初次见面',desc:'打开学习面板',need:()=>1,get:()=>featTotalActions()>=0},
+    {id:'translate10',name:'初试翻译',desc:'累计翻译 10 次',need:()=>10,get:()=>((FEAT_DATA.actions.translate||0)>=10)},
+    {id:'flash20',name:'卡片新手',desc:'复习 20 张闪卡',need:()=>20,get:()=>(FEAT_DATA.actions.flash||0)>=20},
+    {id:'flash100',name:'记忆高手',desc:'复习 100 张闪卡',need:()=>100,get:()=>(FEAT_DATA.actions.flash||0)>=100},
+    {id:'wb10',name:'词汇收集者',desc:'生词本达到 10 词',need:()=>10,get:()=>FEAT_DATA.words.length>=10},
+    {id:'type50',name:'打字熟手',desc:'打字练习正确 50 题',need:()=>50,get:()=>(FEAT_DATA.actions.typing||0)>=50},
+    {id:'listen20',name:'听力达人',desc:'听写正确 20 题',need:()=>20,get:()=>(FEAT_DATA.actions.listen||0)>=20},
+    {id:'streak3',name:'三日之约',desc:'连续打卡 3 天',need:()=>3,get:()=>featStreak()>=3},
+    {id:'streak7',name:'七日坚持',desc:'连续打卡 7 天',need:()=>7,get:()=>featStreak()>=7},
+    {id:'allround',name:'全能选手',desc:'使用 6 类以上功能',need:()=>6,get:()=>Object.keys(FEAT_DATA.actions).length>=6}
+];
+function renderAchievements(){
+    const grid=featEl('achGrid');if(!grid)return;
+    const unlocked=ACH_LIST.filter(a=>a.get()).length;
+    const prog=featEl('achProgress');
+    if(prog)prog.innerHTML=`<div class="ach-bar"><div class="ach-fill" style="width:${Math.round(unlocked/ACH_LIST.length*100)}%"></div></div><div class="ach-count">已解锁 ${unlocked} / ${ACH_LIST.length}</div>`;
+    grid.innerHTML=ACH_LIST.map(a=>{
+        const on=a.get();
+        return `<div class="ach-card ${on?'on':''}"><div class="ach-icon">${on?'★':'☆'}</div><div class="ach-name">${a.name}</div><div class="ach-desc">${a.desc}</div><div class="ach-state">${on?'已解锁':'未解锁'}</div></div>`;
+    }).join('');
+}
+
+/* ---------- 数据管理 ---------- */
+function dmRender(){
+    const grid=featEl('dmGrid');if(!grid)return;
+    const keys=['xl_feat_v1','xl_favorites_v1','xl_translate_history_v1','xl_teach_state_v1','theme'];
+    const rows=keys.map(k=>{
+        let size=0;try{const v=localStorage.getItem(k);size=v?v.length:0;}catch(e){}
+        return `<div class="dm-row"><span class="dm-key">${k}</span><span class="dm-size">${(size/1024).toFixed(1)} KB</span></div>`;
+    }).join('');
+    grid.innerHTML=rows;
+}
+function dmExport(){
+    const data={};
+    try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('xl_')===0)data[k]=localStorage.getItem(k);}}catch(e){}
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='xinglian-backup-'+featToday()+'.json';
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+    featEl('dmStatus').textContent='已导出备份文件';
+}
+function dmImport(file){
+    const reader=new FileReader();
+    reader.onload=()=>{
+        try{
+            const data=JSON.parse(reader.result);
+            Object.keys(data).forEach(k=>{if(k.indexOf('xl_')===0)localStorage.setItem(k,data[k]);});
+            featLoad();renderDashboard();dmRender();
+            featEl('dmStatus').textContent='导入成功，已恢复本地数据';
+        }catch(e){featEl('dmStatus').textContent='导入失败：文件格式不正确';}
+    };
+    reader.readAsText(file);
+}
+function dmClear(){
+    if(!confirm('确定清除全部本地学习数据吗？'))return;
+    try{
+        const ks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('xl_')===0)ks.push(k);}
+        ks.forEach(k=>localStorage.removeItem(k));
+    }catch(e){}
+    Object.keys(FEAT_DATA).forEach(k=>{if(k!=='created')delete FEAT_DATA[k];});
+    FEAT_DATA.days={};FEAT_DATA.actions={};FEAT_DATA.words=[];FEAT_DATA.flash={};FEAT_DATA.ach=[];
+    featSave();renderDashboard();dmRender();wbRender();fcStats();renderAchievements();
+    featEl('dmStatus').textContent='本地数据已清除';
+}
+
+/* ---------- 路由与初始化 ---------- */
+const FEATURE_RENDER={
+    dashboard:renderDashboard,
+    flashcards:()=>{fcStats();if(!FC.cur){featEl('fcFront').textContent='点击「开始」生成第一张卡片';featEl('fcBack').textContent='';}},
+    wordbook:()=>{wbRender();},
+    listen:()=>{listenStats();if(!LISTEN.cur)listenNext();},
+    typing:()=>{typingStats();},
+    analyze:()=>{},
+    numbers:()=>{},
+    names:()=>{},
+    texttools:()=>{},
+    achievements:renderAchievements,
+    datamanage:dmRender
+};
+
+function featInit(){
+    featLoad();
+    featMark('visit');
+    try{document.addEventListener('click',e=>{
+        const nav=e.target.closest('.nav-item');
+        if(nav&&FEATURE_RENDER[nav.dataset.tab])FEATURE_RENDER[nav.dataset.tab]();
+    });}catch(e){}
+
+    const on=(id,ev,fn)=>{const el=featEl(id);if(el)el.addEventListener(ev,fn);};
+
+    // 闪卡
+    on('fcStart','click',()=>{FC.pool=[];fcNext();});
+    on('fcFlip','click',fcFlip);
+    on('fcKnown','click',()=>fcRate(true));
+    on('fcAgain','click',()=>fcRate(false));
+
+    // 生词本
+    on('wbAdd','click',wbAdd);
+    on('wbInput','keydown',e=>{if(e.key==='Enter')wbAdd();});
+    on('wbQuiz','click',wbQuiz);
+    on('wbClear','click',()=>{if(confirm('清空生词本？')){FEAT_DATA.words=[];featSave();wbRender();}});
+
+    // 听写
+    on('listenPlay','click',listenSpeak);
+    on('listenCheck','click',listenCheck);
+    on('listenNext','click',listenNext);
+    on('listenInput','keydown',e=>{if(e.key==='Enter')listenCheck();});
+
+    // 打字
+    on('typingStart','click',typingNext);
+    on('typingSkip','click',typingNext);
+    on('typingInput','keydown',e=>{if(e.key==='Enter')typingCheck();});
+
+    // 句子解析
+    on('analyzeBtn','click',analyzeSentence);
+    on('analyzeInput','keydown',e=>{if(e.key==='Enter')analyzeSentence();});
+
+    // 数字
+    document.querySelectorAll('[data-nummode]').forEach(b=>{
+        b.addEventListener('click',()=>{
+            NUM_MODE.mode=b.dataset.nummode;
+            document.querySelectorAll('[data-nummode]').forEach(x=>x.classList.toggle('active',x===b));
+            featEl('numInput').placeholder={cn2num:'例如：三千零五十',num2cn:'例如：3050',date:'例如：2026-11-14'}[NUM_MODE.mode];
+        });
+    });
+    on('numBtn','click',runNumber);
+    on('numInput','keydown',e=>{if(e.key==='Enter')runNumber();});
+
+    // 姓名
+    on('nameBtn','click',runName);
+    on('nameInput','keydown',e=>{if(e.key==='Enter')runName();});
+
+    // 文本工具
+    on('ttAnalyze','click',ttRun);
+    on('ttCopyPy','click',()=>ttCopy('py'));
+    on('ttCopyXl','click',()=>ttCopy('xl'));
+
+    // 数据管理
+    on('dmExport','click',dmExport);
+    on('dmClear','click',dmClear);
+    on('dmFile','change',e=>{const f=e.target.files&&e.target.files[0];if(f)dmImport(f);});
+
+    // 统计翻译使用
+    on('copyTranslateBtn','click',()=>featMark('translate'));
+
+    // 初始渲染
+    renderDashboard();fcStats();wbRender();listenStats();typingStats();renderAchievements();dmRender();
+}
+window.addEventListener('DOMContentLoaded',featInit);
