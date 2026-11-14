@@ -1542,6 +1542,9 @@ function renderFloatNav(){
     const shengmuList=document.getElementById('navShengmuList');
     const yunmuList=document.getElementById('navYunmuList');
     const comboList=document.getElementById('navComboList');
+    if(!shengmuList||!yunmuList||!comboList){
+        initTheme();initSettings();return;
+    }
     const shengmuItems=[{key:'no_shengmu',label:'无声母'},...CONFIG.SHENGMU_LIST.map(s=>({key:s,label:s}))];
     shengmuList.innerHTML=shengmuItems.map(item=>`<button class="float-nav-btn-item small ${item.key===GLOBAL_STATE.activePyCategory?'active':''}" data-nav="shengmu" data-value="${item.key}">${item.label}</button>`).join('');
     yunmuList.innerHTML=yunmuCategoryList.map(y=>`<button class="float-nav-btn-item small ${y===GLOBAL_STATE.activeYunmuCategory?'active':''}" data-nav="yunmu" data-value="${y}">${y}</button>`).join('');
@@ -1555,7 +1558,7 @@ function renderFloatNav(){
         });
     });
     // 初始化按钮状态
-    const currentTheme=document.body.classList.contains('dark-mode')?'dark':'light';
+    const currentTheme=document.body.classList.contains('light')?'light':'dark';
     document.querySelectorAll('[data-theme]').forEach(btn=>{
         if(btn.dataset.theme===currentTheme){
             btn.classList.add('active');
@@ -1847,27 +1850,28 @@ function initSettings(){
         if(b.dataset.nav==='yunmu'&&b.dataset.value===GLOBAL_STATE.activeYunmuCategory&&GLOBAL_STATE.activeClassifyType==='yunmu')b.classList.add('active');
         if(b.dataset.nav==='combo'&&b.dataset.value===GLOBAL_STATE.activeComboCategory)b.classList.add('active');
     });
+    const setDisp=(id,val)=>{const el=document.getElementById(id);if(el)el.style.display=val;};
     if(GLOBAL_STATE.activeClassifyType==='shengmu'){
-        document.getElementById('navShengmuGroup').style.display='block';
-        document.getElementById('navYunmuGroup').style.display='none';
+        setDisp('navShengmuGroup','block');
+        setDisp('navYunmuGroup','none');
     }else{
-        document.getElementById('navShengmuGroup').style.display='none';
-        document.getElementById('navYunmuGroup').style.display='block';
+        setDisp('navShengmuGroup','none');
+        setDisp('navYunmuGroup','block');
     }
     const activeSec = document.querySelector('.tab-content.active');
     const activeTabId = activeSec ? activeSec.id : 'translate';
     if(activeTabId==='combo'){
-        document.getElementById('navPyClassifyGroup').style.display='none';
-        document.getElementById('navShengmuGroup').style.display='none';
-        document.getElementById('navYunmuGroup').style.display='none';
-        document.getElementById('navToneGroup').style.display='none';
-        document.getElementById('navComboClassifyGroup').style.display='block';
-        document.getElementById('navComboListGroup').style.display='block';
+        setDisp('navPyClassifyGroup','none');
+        setDisp('navShengmuGroup','none');
+        setDisp('navYunmuGroup','none');
+        setDisp('navToneGroup','none');
+        setDisp('navComboClassifyGroup','block');
+        setDisp('navComboListGroup','block');
     }else{
-        document.getElementById('navPyClassifyGroup').style.display='block';
-        document.getElementById('navToneGroup').style.display='block';
-        document.getElementById('navComboClassifyGroup').style.display='none';
-        document.getElementById('navComboListGroup').style.display='none';
+        setDisp('navPyClassifyGroup','block');
+        setDisp('navToneGroup','block');
+        setDisp('navComboClassifyGroup','none');
+        setDisp('navComboListGroup','none');
     }
 }
 function highlightAndScrollToItem(pyRaw) {
@@ -3389,7 +3393,8 @@ if(target.closest('.nav-item')){
         }
         updateDictStats();
     });
-    document.getElementById('floatNavSearch').addEventListener('keydown',(e)=>{
+    const fns=document.getElementById('floatNavSearch');
+    if(fns) fns.addEventListener('keydown',(e)=>{
         if(e.key==='Enter')document.getElementById('floatNavSearchBtn').click();
     });
     document.getElementById('translateInput').addEventListener('keydown',(e)=>{
@@ -4119,28 +4124,43 @@ function syncSettingsUI(){
     }
 }
 
-// 拼音查字
+// 星联文查字
 function doLookup(){
     const input=document.getElementById('lookupInput');
     const result=document.getElementById('lookupResult');
     if(!input||!result) return;
     const raw=input.value.trim();
-    if(!raw){ result.innerHTML='<div class="word-empty">请输入拼音</div>'; return; }
-    let num=markToNum(raw);
-    let key=(num.pinyin||'')+(num.tone||'0');
-    // 尝试直接匹配多种形式
-    let chars = PINYIN_CHINESE_MAP[key]
-        || PINYIN_CHINESE_MAP[key.replace('v','ü')]
-        || PINYIN_CHINESE_MAP[raw.toLowerCase()]
-        || PINYIN_CHINESE_MAP[raw.toLowerCase().replace('v','ü')]
-        || [];
-    if(typeof chars==='string') chars=[chars];
-    if(!chars.length){
-        result.innerHTML='<div class="word-empty">没有找到对应汉字</div>';
-        return;
-    }
-    const list=chars.slice(0,60).map(c=>`<span class="word-chip" title="点击复制">${c}</span>`).join('');
-    result.innerHTML=`<div class="word-list">${list}</div><div class="tp-desc" style="margin-top:12px">共 ${chars.length} 个候选汉字</div>`;
+    if(!raw){ result.innerHTML='<div class="word-empty">请输入星联文</div>'; return; }
+    ensurePreferredChars();
+    // 展开简写（ae'ho → aeoho）
+    const expanded=expandSimplifiedXinglian(raw);
+    const words=expanded.toLowerCase().split(/\s+/).filter(Boolean);
+    if(!words.length){ result.innerHTML='<div class="word-empty">无法识别的星联文</div>'; return; }
+    let html='';
+    words.forEach((w,wi)=>{
+        const rev=strictReverseConvert(w);
+        const rawCands=rev.rawCandidates||[];
+        const pyCands=rev.candidates||[];
+        // 收集所有候选汉字
+        const charSet=new Set();
+        rawCands.forEach(rp=>{
+            const arr=PINYIN_CHINESE_MAP[rp]||PINYIN_CHINESE_MAP[rp.replace('ü','v')];
+            if(arr){ (Array.isArray(arr)?arr:[arr]).forEach(c=>charSet.add(c)); }
+        });
+        const chars=[...charSet];
+        const pyStr=pyCands.slice(0,3).join(' / ');
+        html+=`<div class="lookup-word-block">`;
+        html+=`<div class="lookup-word-head"><span class="lookup-xl">${w}</span><span class="lookup-py">${pyStr||'?'}</span></div>`;
+        if(chars.length){
+            const chips=chars.slice(0,80).map(c=>`<span class="word-chip" title="点击复制">${c}</span>`).join('');
+            html+=`<div class="word-list">${chips}</div>`;
+            html+=`<div class="tp-desc">共 ${chars.length} 个候选汉字</div>`;
+        }else{
+            html+=`<div class="word-empty">没有找到对应汉字</div>`;
+        }
+        html+=`</div>`;
+    });
+    result.innerHTML=html;
 }
 document.addEventListener('click',function(e){
     if(e.target.closest('#lookupBtn')){ doLookup(); return; }
