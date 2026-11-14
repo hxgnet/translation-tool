@@ -1782,7 +1782,8 @@ function renderComboTable(){
     t.innerHTML=h;
 }
 function updateDictStats(){
-    const activeTab=document.querySelector('.dict-tab.active').dataset.tab;
+    const activeSec=document.querySelector('.tab-content.active');
+    const activeTab=(activeSec&&activeSec.id==='combo')?'doubleComboDict':'pyDict';
     const total=document.getElementById('totalCount');
     const kw=GLOBAL_STATE.searchKeyword.trim();
     if(kw){
@@ -1831,8 +1832,13 @@ function initSettings(){
     });
     document.querySelectorAll('#floatNavPanel .float-nav-btn-item').forEach(b=>{
         b.classList.remove('active');
-        if(b.dataset.nav==='tab'&&b.dataset.value===document.querySelector('.tab-btn.active').dataset.tab)b.classList.add('active');
-        if(b.dataset.nav==='dictType'&&b.dataset.value===document.querySelector('.dict-tab.active').dataset.tab)b.classList.add('active');
+        const activeNav=document.querySelector('.nav-item.active');
+        const activeTab=activeNav?activeNav.dataset.tab:'translate';
+        if(b.dataset.nav==='tab'&&b.dataset.value===activeTab)b.classList.add('active');
+        if(b.dataset.nav==='dictPage'){
+            const val=b.dataset.value;
+            if((val==='pyDict'&&activeTab==='dict')||(val==='doubleComboDict'&&activeTab==='combo'))b.classList.add('active');
+        }
         if(b.dataset.nav==='pyClassify'&&b.dataset.value===GLOBAL_STATE.activeClassifyType)b.classList.add('active');
         if(b.dataset.nav==='comboClassify'&&b.dataset.value===GLOBAL_STATE.comboClassifyType)b.classList.add('active');
         if(b.dataset.nav==='tone'&&b.dataset.value==GLOBAL_STATE.currentTone.toString())b.classList.add('active');
@@ -1848,7 +1854,9 @@ function initSettings(){
         document.getElementById('navShengmuGroup').style.display='none';
         document.getElementById('navYunmuGroup').style.display='block';
     }
-    if(document.querySelector('.dict-tab.active').dataset.tab==='doubleComboDict'){
+    const activeSec = document.querySelector('.tab-content.active');
+    const activeTabId = activeSec ? activeSec.id : 'translate';
+    if(activeTabId==='combo'){
         document.getElementById('navPyClassifyGroup').style.display='none';
         document.getElementById('navShengmuGroup').style.display='none';
         document.getElementById('navYunmuGroup').style.display='none';
@@ -1882,8 +1890,7 @@ function jumpToPinyinFromMarked(markedPy) {
     const targetItem = fullDict.find(item => item.pyRaw === pyRawV || item.pyRaw === pyRawU);
     if (!targetItem) return;
     const pyRaw = targetItem.pyRaw;
-    document.querySelector('.tab-btn[data-tab="dict"]').click();
-    document.querySelector('.dict-tab[data-tab="pyDict"]').click();
+    document.querySelector('.nav-item[data-tab="dict"]').click();
     if (GLOBAL_STATE.activeClassifyType === 'shengmu') {
         GLOBAL_STATE.activePyCategory = targetItem.sm;
     }else{
@@ -2679,12 +2686,12 @@ function debounceTranslate(){
 }
 // 黑白主题切换
 function toggleTheme(theme){
-    if(theme==='dark'){
-        document.body.classList.add('dark-mode');
-        localStorage.setItem('theme','dark');
-    }else{
-        document.body.classList.remove('dark-mode');
+    if(theme==='light'){
+        document.body.classList.add('light');
         localStorage.setItem('theme','light');
+    }else{
+        document.body.classList.remove('light');
+        localStorage.setItem('theme','dark');
     }
     // 更新按钮状态
     document.querySelectorAll('[data-theme]').forEach(btn=>{
@@ -2698,8 +2705,8 @@ function toggleTheme(theme){
 // 初始化主题
 function initTheme(){
     const saved=localStorage.getItem('theme');
-    if(saved==='dark'){
-        document.body.classList.add('dark-mode');
+    if(saved==='light'){
+        document.body.classList.add('light');
     }
 }
 window.addEventListener('DOMContentLoaded',()=>{
@@ -2780,23 +2787,27 @@ window.addEventListener('DOMContentLoaded',()=>{
             arrow.textContent=group.classList.contains('collapsed')?'▶':'▼';
             return;
         }
-if(target.closest('.tab-btn')){
-            const btn=target.closest('.tab-btn');
-            document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+if(target.closest('.nav-item')){
+            const btn=target.closest('.nav-item');
+            document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
             btn.classList.add('active');
             const id=btn.dataset.tab;
-            document.getElementById(id).classList.add('active');
-            if(id==='dict'){
-                const at=document.querySelector('.dict-tab.active').dataset.tab;
-                if(at==='pyDict'){renderPyNav();renderPyContent();renderPyTable();}
-                else{renderComboNav();renderComboContent();renderComboTable();}
-                updateDictStats();
-            }
-            if(id==='train'){
+            const sec=document.getElementById(id);
+            if(sec) sec.classList.add('active');
+            if(id==='dict'){renderPyNav();renderPyContent();renderPyTable();updateDictStats();}
+            if(id==='combo'){renderComboNav();renderComboContent();renderComboTable();}
+            if(id==='train'){renderTeachNav();renderTeachLesson();}
+            if(id==='practice'){
                 if(window.PRACTICE_BANK) renderPractice();
                 else ensurePracticeBank();
             }
+            if(id==='settings'){ syncSettingsUI(); }
+            // 移动端关闭侧栏
+            const sb=document.getElementById('appSidebar');
+            if(sb) sb.classList.remove('open');
+            const mk=document.getElementById('sidebarMask');
+            if(mk) mk.classList.remove('show');
             initSettings();
             renderFloatNav();
             return;
@@ -2974,8 +2985,7 @@ if(target.closest('.tab-btn')){
             const pyRaw=item.dataset.pyRaw;
             const sm=item.dataset.sm;
             const ym=item.dataset.ym;
-            document.querySelector('.tab-btn[data-tab="dict"]').click();
-            document.querySelector('.dict-tab[data-tab="pyDict"]').click();
+            document.querySelector('.nav-item[data-tab="dict"]').click();
             if(GLOBAL_STATE.activeClassifyType==='shengmu'){
                 GLOBAL_STATE.activePyCategory=sm;
             }else{
@@ -3183,19 +3193,13 @@ if(target.closest('.tab-btn')){
         if(target.closest('#floatNavSearchBtn')){
             const kw=document.getElementById('floatNavSearch').value.trim();
             if(!kw)return;
-            document.querySelector('.tab-btn[data-tab="dict"]').click();
-            const dictTab=document.querySelector('.dict-tab.active').dataset.tab;
+            document.querySelector('.nav-item[data-tab="dict"]').click();
             GLOBAL_STATE.searchKeyword=kw;
             document.getElementById('dictSearch').value=kw;
             calcTableMatchCache();
-            if(dictTab==='pyDict'){
-                renderPyNav();
-                renderPyContent();
-                renderPyTable();
-            }else{
-                renderComboContent();
-                renderComboTable();
-            }
+            renderPyNav();
+            renderPyContent();
+            renderPyTable();
             updateDictStats();
             document.getElementById('floatNavBtn').classList.remove('active');
             document.getElementById('floatNavPanel').classList.remove('active');
@@ -3206,17 +3210,19 @@ if(target.closest('.tab-btn')){
         if(target.closest('#floatNavPanel [data-nav="tab"]')){
             const btn=target.closest('[data-nav="tab"]');
             const val=btn.dataset.value;
-            document.querySelector(`.tab-btn[data-tab="${val}"]`).click();
+            const navBtn=document.querySelector(`.nav-item[data-tab="${val}"]`);
+            if(navBtn) navBtn.click();
             document.getElementById('floatNavBtn').classList.remove('active');
             document.getElementById('floatNavPanel').classList.remove('active');
             document.getElementById('floatNavMask').classList.remove('active');
             return;
         }
-        if(target.closest('#floatNavPanel [data-nav="dictType"]')){
-            const btn=target.closest('[data-nav="dictType"]');
+        if(target.closest('#floatNavPanel [data-nav="dictPage"]')){
+            const btn=target.closest('[data-nav="dictPage"]');
             const val=btn.dataset.value;
-            document.querySelector('.tab-btn[data-tab="dict"]').click();
-            document.querySelector(`.dict-tab[data-tab="${val}"]`).click();
+            const targetTab=val==='doubleComboDict'?'combo':'dict';
+            const navBtn=document.querySelector(`.nav-item[data-tab="${targetTab}"]`);
+            if(navBtn) navBtn.click();
             document.getElementById('floatNavBtn').classList.remove('active');
             document.getElementById('floatNavPanel').classList.remove('active');
             document.getElementById('floatNavMask').classList.remove('active');
@@ -3225,8 +3231,7 @@ if(target.closest('.tab-btn')){
         if(target.closest('#floatNavPanel [data-nav="pyClassify"]')){
             const btn=target.closest('[data-nav="pyClassify"]');
             const val=btn.dataset.value;
-            document.querySelector('.tab-btn[data-tab="dict"]').click();
-            document.querySelector('.dict-tab[data-tab="pyDict"]').click();
+            document.querySelector('.nav-item[data-tab="dict"]').click();
             document.querySelector(`.classify-btn[data-classify="${val}"]`).click();
             document.getElementById('floatNavBtn').classList.remove('active');
             document.getElementById('floatNavPanel').classList.remove('active');
@@ -3236,8 +3241,7 @@ if(target.closest('.tab-btn')){
         if(target.closest('#floatNavPanel [data-nav="shengmu"]')){
             const btn=target.closest('[data-nav="shengmu"]');
             const val=btn.dataset.value;
-            document.querySelector('.tab-btn[data-tab="dict"]').click();
-            document.querySelector('.dict-tab[data-tab="pyDict"]').click();
+            document.querySelector('.nav-item[data-tab="dict"]').click();
             if(GLOBAL_STATE.activeClassifyType!=='shengmu'){
                 document.querySelector('.classify-btn[data-classify="shengmu"]').click();
             }
@@ -3256,8 +3260,7 @@ if(target.closest('.tab-btn')){
         if(target.closest('#floatNavPanel [data-nav="yunmu"]')){
             const btn=target.closest('[data-nav="yunmu"]');
             const val=btn.dataset.value;
-            document.querySelector('.tab-btn[data-tab="dict"]').click();
-            document.querySelector('.dict-tab[data-tab="pyDict"]').click();
+            document.querySelector('.nav-item[data-tab="dict"]').click();
             if(GLOBAL_STATE.activeClassifyType!=='yunmu'){
                 document.querySelector('.classify-btn[data-classify="yunmu"]').click();
             }
@@ -3276,8 +3279,7 @@ if(target.closest('.tab-btn')){
         if(target.closest('#floatNavPanel [data-nav="tone"]')){
             const btn=target.closest('[data-nav="tone"]');
             const val=parseInt(btn.dataset.value);
-            document.querySelector('.tab-btn[data-tab="dict"]').click();
-            document.querySelector('.dict-tab[data-tab="pyDict"]').click();
+            document.querySelector('.nav-item[data-tab="dict"]').click();
             document.querySelector(`.tone-btn[data-tone="${val}"]`).click();
             document.getElementById('floatNavBtn').classList.remove('active');
             document.getElementById('floatNavPanel').classList.remove('active');
@@ -3287,8 +3289,7 @@ if(target.closest('.tab-btn')){
         if(target.closest('#floatNavPanel [data-nav="comboClassify"]')){
             const btn=target.closest('[data-nav="comboClassify"]');
             const val=btn.dataset.value;
-            document.querySelector('.tab-btn[data-tab="dict"]').click();
-            document.querySelector('.dict-tab[data-tab="doubleComboDict"]').click();
+            document.querySelector('.nav-item[data-tab="combo"]').click();
             document.querySelector(`.combo-classify-btn[data-classify="${val}"]`).click();
             document.getElementById('floatNavBtn').classList.remove('active');
             document.getElementById('floatNavPanel').classList.remove('active');
@@ -3298,8 +3299,7 @@ if(target.closest('.tab-btn')){
         if(target.closest('#floatNavPanel [data-nav="combo"]')){
             const btn=target.closest('[data-nav="combo"]');
             const val=btn.dataset.value;
-            document.querySelector('.tab-btn[data-tab="dict"]').click();
-            document.querySelector('.dict-tab[data-tab="doubleComboDict"]').click();
+            document.querySelector('.nav-item[data-tab="combo"]').click();
             comboClassifyType=document.querySelector('#floatNavPanel [data-nav="comboClassify"].active')?.dataset.value||'tailYunmu';
             GLOBAL_STATE.activeComboCategory=val;
             renderComboNav();
@@ -3325,7 +3325,7 @@ if(target.closest('.tab-btn')){
         if(target.closest('#floatNavPanel [data-doc]')){
             const btn=target.closest('[data-doc]');
             const docId=btn.dataset.doc;
-            document.querySelector('.tab-btn[data-tab="guide"]').click();
+            document.querySelector('.nav-item[data-tab="guide"]').click();
             document.querySelectorAll('.document-item').forEach(item=>item.classList.remove('active'));
             const targetDoc=document.getElementById(docId);
             if(targetDoc){
@@ -3377,14 +3377,15 @@ if(target.closest('.tab-btn')){
     document.getElementById('dictSearch').addEventListener('input',(e)=>{
         GLOBAL_STATE.searchKeyword=e.target.value;
         calcTableMatchCache();
-        const activeTab=document.querySelector('.dict-tab.active').dataset.tab;
-        if(activeTab==='pyDict'){
+        const activeSec=document.querySelector('.tab-content.active');
+        const isCombo=activeSec&&activeSec.id==='combo';
+        if(isCombo){
+            renderComboContent();
+            renderComboTable();
+        }else{
             renderPyNav();
             renderPyContent();
             renderPyTable();
-        }else{
-            renderComboContent();
-            renderComboTable();
         }
         updateDictStats();
     });
@@ -3979,13 +3980,11 @@ function renderTeachLesson(){
         </div>
         <div class="teach-body">${lesson.body()}</div>
         <div class="teach-quiz"><h3>随堂练习</h3>${quizHtml}</div>
-        <div class="teach-practice" id="tpPractice"></div>
         <div class="teach-actions">
             <button class="chip-btn" id="teachPrev" type="button" ${idx === 0 ? 'disabled' : ''}>上一课</button>
             <button class="chip-btn primary" id="teachNext" type="button" ${idx === TEACH_LESSONS.length - 1 ? 'disabled' : ''}>下一课</button>
         </div>`;
     updateTeachProgress();
-    renderPractice();
 }
 function updateTeachProgress(){
     const bar = document.getElementById('teachProgressBar');
@@ -4089,3 +4088,147 @@ document.addEventListener('keydown', function(e){
 });
 renderTeachNav();
 renderTeachLesson();
+
+/* ===================== 新功能：侧栏 / 拼音查字 / 声调训练 / 设置 ===================== */
+// 移动端侧栏切换
+document.addEventListener('click', function(e){
+    if(e.target.closest('#sidebarToggle')){
+        document.getElementById('appSidebar').classList.toggle('open');
+        document.getElementById('sidebarMask').classList.toggle('show');
+        return;
+    }
+    if(e.target.closest('#sidebarMask')){
+        document.getElementById('appSidebar').classList.remove('open');
+        document.getElementById('sidebarMask').classList.remove('show');
+        return;
+    }
+});
+
+// 设置页 UI 同步
+function syncSettingsUI(){
+    document.querySelectorAll('[data-theme]').forEach(b=>{
+        b.classList.toggle('active', (b.dataset.theme==='light')===document.body.classList.contains('light'));
+    });
+    document.querySelectorAll('[data-mode]').forEach(b=>{
+        b.classList.toggle('active', b.dataset.mode===GLOBAL_STATE.copyMode);
+    });
+    const aiBtn=document.getElementById('settingsAiToggle');
+    if(aiBtn){
+        aiBtn.classList.toggle('active', AI_REFINE.enabled);
+        aiBtn.textContent=AI_REFINE.enabled?'已开启':'已关闭';
+    }
+}
+
+// 拼音查字
+function doLookup(){
+    const input=document.getElementById('lookupInput');
+    const result=document.getElementById('lookupResult');
+    if(!input||!result) return;
+    const raw=input.value.trim();
+    if(!raw){ result.innerHTML='<div class="word-empty">请输入拼音</div>'; return; }
+    let num=markToNum(raw);
+    let key=(num.pinyin||'')+(num.tone||'0');
+    // 尝试直接匹配多种形式
+    let chars = PINYIN_CHINESE_MAP[key]
+        || PINYIN_CHINESE_MAP[key.replace('v','ü')]
+        || PINYIN_CHINESE_MAP[raw.toLowerCase()]
+        || PINYIN_CHINESE_MAP[raw.toLowerCase().replace('v','ü')]
+        || [];
+    if(typeof chars==='string') chars=[chars];
+    if(!chars.length){
+        result.innerHTML='<div class="word-empty">没有找到对应汉字</div>';
+        return;
+    }
+    const list=chars.slice(0,60).map(c=>`<span class="word-chip" title="点击复制">${c}</span>`).join('');
+    result.innerHTML=`<div class="word-list">${list}</div><div class="tp-desc" style="margin-top:12px">共 ${chars.length} 个候选汉字</div>`;
+}
+document.addEventListener('click',function(e){
+    if(e.target.closest('#lookupBtn')){ doLookup(); return; }
+    if(e.target.classList && e.target.classList.contains('word-chip')){
+        const ch=e.target.textContent;
+        navigator.clipboard&&navigator.clipboard.writeText(ch);
+        showToast('已复制：'+ch);
+    }
+});
+document.addEventListener('keydown',function(e){
+    if(e.target&&e.target.id==='lookupInput'&&e.key==='Enter'){ e.preventDefault(); doLookup(); }
+});
+
+// 声调训练
+const TONE_STATE={cur:null,score:0,total:0,answered:false};
+function dictTone(it){return parseInt((it.pyRaw.match(/[1-5]/)||['0'])[0]);}
+function tonePick(){
+    const list=fullDict.filter(d=>{const t=dictTone(d);return t>=1&&t<=4;});
+    if(!list.length) return null;
+    return list[Math.floor(Math.random()*list.length)];
+}
+function toneNew(){
+    TONE_STATE.cur=tonePick();
+    if(!TONE_STATE.cur){ document.getElementById('toneFb').textContent='词典未就绪'; return; }
+    TONE_STATE.answered=false;
+    const word=TONE_STATE.cur;
+    const cnList=pinyinToChinese(word.pyRaw)||[];
+    const cn=cnList[0]||'';
+    document.getElementById('toneWord').textContent=word.xlS;
+    document.getElementById('toneHint').textContent=`拼音：${numDisplay(word.pyRaw)}${cn?' · 例字：'+cn:''}`;
+    document.getElementById('toneFb').textContent='';
+    document.getElementById('toneMeta').textContent=`第 ${TONE_STATE.total+1} 题 · 答对 ${TONE_STATE.score}`;
+    const opts=['一声','二声','三声','四声'];
+    document.getElementById('toneOptions').innerHTML=opts.map((t,i)=>`<button class="tone-opt" data-tone="${i+1}">${t}</button>`).join('');
+    document.querySelectorAll('.tone-opt').forEach(b=>b.classList.remove('correct','wrong'));
+}
+document.addEventListener('click',function(e){
+    const opt=e.target.closest('.tone-opt');
+    if(opt){
+        if(TONE_STATE.answered||!TONE_STATE.cur) return;
+        TONE_STATE.answered=true;
+        TONE_STATE.total++;
+        const picked=parseInt(opt.dataset.tone);
+        const correct=dictTone(TONE_STATE.cur);
+        document.querySelectorAll('.tone-opt').forEach(b=>{
+            if(parseInt(b.dataset.tone)===correct) b.classList.add('correct');
+            else if(b===opt) b.classList.add('wrong');
+        });
+        if(picked===correct){ TONE_STATE.score++; document.getElementById('toneFb').textContent='✓ 正确！'; }
+        else{ document.getElementById('toneFb').textContent=`✗ 答案是 ${['','一','二','三','四'][correct]}声（${numDisplay(TONE_STATE.cur.pyRaw)}）`; }
+        document.getElementById('toneMeta').textContent=`第 ${TONE_STATE.total} 题 · 答对 ${TONE_STATE.score}`;
+        return;
+    }
+    if(e.target.closest('#toneStart')||e.target.closest('#toneNext')){
+        toneNew();
+        return;
+    }
+    // 设置：主题
+    const th=e.target.closest('[data-theme]');
+    if(th){ toggleTheme(th.dataset.theme); syncSettingsUI(); return; }
+    // 设置：复制模式
+    const md=e.target.closest('.settings-control [data-mode]');
+    if(md){
+        GLOBAL_STATE.copyMode=md.dataset.mode;
+        localStorage.setItem('copyMode',GLOBAL_STATE.copyMode);
+        initSettings();
+        syncSettingsUI();
+        return;
+    }
+    // 设置：AI 开关
+    if(e.target.closest('#settingsAiToggle')){
+        AI_REFINE.enabled=!AI_REFINE.enabled;
+        try{localStorage.setItem('xl_ai_refine',AI_REFINE.enabled?'1':'0');}catch(err){}
+        refreshAiToggle();
+        syncSettingsUI();
+        return;
+    }
+    // 设置：清空全部数据
+    if(e.target.closest('#clearAllDataBtn')){
+        if(!confirm('确定清空所有历史、收藏和学习进度吗？')) return;
+        ['xl_translate_history_v1','xl_favorites_v1','xl_teach_state_v1','xl_ai_refine','copyMode'].forEach(k=>{
+            try{localStorage.removeItem(k);}catch(e){}
+        });
+        try{ localStorage.setItem('copyMode','py'); }catch(e){}
+        GLOBAL_STATE.copyMode='py';
+        AI_REFINE.enabled=true;
+        TEACH_STATE.idx=0; TEACH_STATE.done=[];
+        location.reload();
+        return;
+    }
+});
