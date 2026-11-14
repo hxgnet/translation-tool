@@ -2713,6 +2713,104 @@ function initTheme(){
         document.body.classList.add('light');
     }
 }
+// ============ 语料库 ============
+const CORPUS_STATE={mode:'words',cat:'',kw:'',page:1,pageSize:50};
+function corpusData(){return window.CORPUS_DATA||{words:{},sentences:[],meta:{}};}
+function renderCorpusCats(){
+    const d=corpusData();
+    const el=document.getElementById('corpusCats');
+    if(!el) return;
+    if(CORPUS_STATE.mode==='words'){
+        const cats=Object.keys(d.words||{}).sort();
+        el.innerHTML='<button class="corpus-cat '+(!CORPUS_STATE.cat?'active':'')+'" data-cat="">全部</button>'+
+            cats.map(c=>`<button class="corpus-cat ${CORPUS_STATE.cat===c?'active':''}" data-cat="${c}">${c} (${(d.words[c]||[]).length})</button>`).join('');
+    }else{
+        const tags=['全部','成语','谚语'];
+        el.innerHTML=tags.map((t,i)=>{
+            const v=i===0?'':(i===1?'idiom':'proverb');
+            return `<button class="corpus-cat ${CORPUS_STATE.cat===v?'active':''}" data-cat="${v}">${t}</button>`;
+        }).join('');
+    }
+    document.querySelectorAll('#corpusCats .corpus-cat').forEach(b=>{
+        b.addEventListener('click',()=>{CORPUS_STATE.cat=b.dataset.cat;CORPUS_STATE.page=1;renderCorpusList();renderCorpusCats();});
+    });
+}
+function getFilteredCorpus(){
+    const d=corpusData();
+    const kw=CORPUS_STATE.kw.trim().toLowerCase();
+    let list=[];
+    if(CORPUS_STATE.mode==='words'){
+        const cats=CORPUS_STATE.cat?[CORPUS_STATE.cat]:Object.keys(d.words||{});
+        for(const c of cats){
+            for(const item of (d.words[c]||[])){
+                const [cn,py,xl]=Array.isArray(item)?item:[item.c,item.p,item.x];
+                if(!kw||cn.includes(kw)||(py||'').toLowerCase().includes(kw)||(xl||'').toLowerCase().includes(kw)){
+                    list.push({c:cn,p:py,x:xl});
+                }
+            }
+        }
+    }else{
+        for(const s of (d.sentences||[])){
+            if(CORPUS_STATE.cat && s.t!==CORPUS_STATE.cat) continue;
+            if(!kw||s.c.includes(kw)||(s.p||'').toLowerCase().includes(kw)||(s.x||'').toLowerCase().includes(kw)){
+                list.push(s);
+            }
+        }
+    }
+    return list;
+}
+function renderCorpusList(){
+    const el=document.getElementById('corpusList');
+    if(!el) return;
+    const list=getFilteredCorpus();
+    const total=list.length;
+    const ps=CORPUS_STATE.pageSize;
+    const totalPages=Math.max(1,Math.ceil(total/ps));
+    if(CORPUS_STATE.page>totalPages)CORPUS_STATE.page=totalPages;
+    const start=(CORPUS_STATE.page-1)*ps;
+    const page=list.slice(start,start+ps);
+    if(!page.length){el.innerHTML='<div class="word-empty" style="padding:24px;text-align:center">没有匹配的内容</div>';}
+    else{
+        el.innerHTML=page.map(it=>{
+            const tag=it.t==='idiom'?'成语':(it.t==='proverb'?'谚语':'');
+            return `<div class="corpus-item" data-cn="${(it.c||'').replace(/"/g,'&quot;')}">
+                <span class="corpus-cn">${it.c||''}</span>
+                <span class="corpus-py">${it.p||''}</span>
+                <span class="corpus-xl">${it.x||''}</span>
+                ${tag?`<span class="corpus-tag">${tag}</span>`:''}
+            </div>`;
+        }).join('');
+    }
+    renderCorpusPager(total,totalPages);
+    // update counts
+    const wEl=document.getElementById('corpusWordCount');
+    const sEl=document.getElementById('corpusSentCount');
+    const d=corpusData();
+    if(wEl)wEl.textContent=(d.meta?.words||0).toLocaleString();
+    if(sEl)sEl.textContent=(d.sentences?.length||0).toLocaleString();
+}
+function renderCorpusPager(total,totalPages){
+    const el=document.getElementById('corpusPager');
+    if(!el) return;
+    el.innerHTML=`<button id="corpusPrev" ${CORPUS_STATE.page<=1?'disabled':''}>上一页</button>
+        <span>第 ${CORPUS_STATE.page} / ${totalPages} 页（共 ${total.toLocaleString()} 条）</span>
+        <button id="corpusNext" ${CORPUS_STATE.page>=totalPages?'disabled':''}>下一页</button>`;
+    const p=document.getElementById('corpusPrev');
+    const n=document.getElementById('corpusNext');
+    if(p)p.onclick=()=>{if(CORPUS_STATE.page>1){CORPUS_STATE.page--;renderCorpusList();}};
+    if(n)n.onclick=()=>{if(CORPUS_STATE.page<totalPages){CORPUS_STATE.page++;renderCorpusList();}};
+}
+function renderCorpus(){
+    const d=corpusData();
+    const st=document.getElementById('corpusStats');
+    if(st)st.textContent=`共 ${(d.meta?.words||0).toLocaleString()} 词汇 · ${(d.sentences?.length||0).toLocaleString()} 例句，中文 · 拼音 · 星联文对照`;
+    document.querySelectorAll('.corpus-tab').forEach(t=>{
+        t.classList.toggle('active',t.dataset.corpu===CORPUS_STATE.mode);
+    });
+    CORPUS_STATE.cat='';CORPUS_STATE.page=1;
+    renderCorpusCats();
+    renderCorpusList();
+}
 window.addEventListener('DOMContentLoaded',()=>{
     buildPinyinChineseMap();
     buildForwardDict();
@@ -2722,6 +2820,32 @@ window.addEventListener('DOMContentLoaded',()=>{
     restoreAutoSaveData();
     initSettings();
     
+    // 语料库事件
+    document.querySelectorAll('.corpus-tab').forEach(t=>{
+        t.addEventListener('click',()=>{
+            CORPUS_STATE.mode=t.dataset.corpu;
+            CORPUS_STATE.cat='';CORPUS_STATE.page=1;
+            renderCorpus();
+        });
+    });
+    document.getElementById('corpusSearchBtn')?.addEventListener('click',()=>{
+        CORPUS_STATE.kw=document.getElementById('corpusSearch').value;
+        CORPUS_STATE.page=1;renderCorpusList();
+    });
+    document.getElementById('corpusSearch')?.addEventListener('keydown',e=>{
+        if(e.key==='Enter'){document.getElementById('corpusSearchBtn').click();}
+    });
+    document.addEventListener('click',e=>{
+        const item=e.target.closest('.corpus-item');
+        if(item){
+            const cn=item.querySelector('.corpus-cn')?.textContent||'';
+            const py=item.querySelector('.corpus-py')?.textContent||'';
+            const xl=item.querySelector('.corpus-xl')?.textContent||'';
+            const text=GLOBAL_STATE.copyMode==='xl'?xl:(GLOBAL_STATE.copyMode==='py'?py:cn);
+            navigator.clipboard?.writeText(text).catch(()=>{});
+        }
+    });
+
     // 多音字点击事件监听（事件委托）
     document.addEventListener('click', function(e){
         // 点击星联文→中文方向的多音字高亮字
@@ -2801,6 +2925,7 @@ if(target.closest('.nav-item')){
             if(sec) sec.classList.add('active');
             if(id==='dict'){renderPyNav();renderPyContent();renderPyTable();updateDictStats();}
             if(id==='combo'){renderComboNav();renderComboContent();renderComboTable();}
+            if(id==='corpus'){renderCorpus();}
             if(id==='train'){renderTeachNav();renderTeachLesson();}
             if(id==='practice'){
                 if(window.PRACTICE_BANK) renderPractice();

@@ -33,6 +33,7 @@
                     <div class="nav-group-label">词典</div>
                     <button class="nav-item" data-tab="dict"><span class="nav-ico">字</span>单字词典</button>
                     <button class="nav-item" data-tab="combo"><span class="nav-ico">合</span>组合词典</button>
+                    <button class="nav-item" data-tab="corpus"><span class="nav-ico">库</span>语料库</button>
                 </div>
                 <div class="nav-group">
                     <div class="nav-group-label">工具</div>
@@ -225,6 +226,25 @@
                     <div class="combo-related-empty">点击上方表格中的有效组合查看相关拼音</div>
                 </div>
             </div>
+        </div>
+    </div>
+    <div class="tab-content" id="corpus">
+        <div class="card">
+            <div class="page-header">
+                <h1 class="page-title">星联语语料库</h1>
+                <p class="page-subtitle" id="corpusStats">海量词汇与例句，中文 · 拼音 · 星联文对照</p>
+            </div>
+            <div class="corpus-tabs">
+                <button class="corpus-tab active" data-corpu="words">词汇 <span id="corpusWordCount">0</span></button>
+                <button class="corpus-tab" data-corpu="sentences">例句 <span id="corpusSentCount">0</span></button>
+            </div>
+            <div class="corpus-search">
+                <input type="text" class="dict-input" id="corpusSearch" placeholder="搜索中文、拼音或星联文…">
+                <button class="chip-btn primary" id="corpusSearchBtn" type="button">搜索</button>
+            </div>
+            <div class="corpus-cats" id="corpusCats"></div>
+            <div class="corpus-list" id="corpusList"></div>
+            <div class="corpus-pager" id="corpusPager"></div>
         </div>
     </div>
     <div class="tab-content" id="guide">
@@ -465,6 +485,7 @@
         <div class="polyphone-popup-footer">点击选择正确的汉字</div>
     </div>
 
+    <script src="corpus-data.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
